@@ -186,7 +186,8 @@ export function createIdleController({
     window.addEventListener(type, registerInteraction, true);
   }
   controls?.addEventListener('start', registerInteraction);
-  controls?.addEventListener('change', registerInteraction);
+  // Camera changes can now be automatic. Intentional orbit input is already
+  // covered by start/end and canvas pointer/wheel events above.
   controls?.addEventListener('end', registerInteraction);
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -219,7 +220,6 @@ export function createIdleController({
         window.removeEventListener(type, registerInteraction, true);
       }
       controls?.removeEventListener('start', registerInteraction);
-      controls?.removeEventListener('change', registerInteraction);
       controls?.removeEventListener('end', registerInteraction);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       action?.stop();
