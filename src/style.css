@@ -1,0 +1,917 @@
+:root {
+  color: #272725;
+  background: #e9e7e2;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html[data-embed-mode],
+html[data-embed-mode] body {
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+#app[data-embed-mode='true'] {
+  background: transparent;
+}
+
+#status {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  z-index: 2;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgb(39 39 37 / 12%);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 65%);
+  box-shadow: 0 0.5rem 1.5rem rgb(39 39 37 / 8%);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(0.5rem);
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+#status[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+#status.is-error {
+  color: #8c2020;
+}
+
+.follow-toggle,
+.background-mode-toggle {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.52rem 0.6rem 0.52rem 0.7rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.4rem;
+  color: rgb(255 255 255 / 82%);
+  background: rgb(20 21 20 / 82%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.025em;
+  backdrop-filter: blur(0.4rem);
+  cursor: pointer;
+  user-select: none;
+}
+
+.follow-toggle input,
+.background-mode-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 1.85rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 22%);
+  transition: background 160ms ease;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 0.16rem;
+  left: 0.16rem;
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 50%;
+  background: #f5f5f2;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform 160ms ease;
+}
+
+.follow-toggle input:checked + .toggle-track,
+.background-mode-toggle input:checked + .toggle-track {
+  background: #4a9bff;
+}
+
+.follow-toggle input:checked + .toggle-track .toggle-thumb,
+.background-mode-toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(0.85rem);
+}
+
+.follow-toggle:focus-within,
+.background-mode-toggle:focus-within {
+  outline: 2px solid rgb(74 155 255 / 65%);
+  outline-offset: 2px;
+}
+
+.background-mode-toggle {
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.deformation-mode-control {
+  position: fixed;
+  top: 3.55rem;
+  right: 0.75rem;
+  z-index: 3;
+  display: flex;
+  gap: 0.18rem;
+  padding: 0.22rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.4rem;
+  background: rgb(20 21 20 / 82%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  backdrop-filter: blur(0.4rem);
+}
+
+.keyboard-mode-control {
+  position: fixed;
+  top: 6.15rem;
+  right: 0.75rem;
+  z-index: 4;
+  width: 12.5rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.4rem;
+  color: rgb(255 255 255 / 88%);
+  background: rgb(20 21 20 / 82%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  font: 600 0.65rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  backdrop-filter: blur(0.4rem);
+}
+
+.keyboard-mode-control summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.52rem 0.6rem;
+  cursor: pointer;
+}
+
+.keyboard-mode-control summary::-webkit-details-marker {
+  display: none;
+}
+
+.keyboard-mode-title::before {
+  display: inline-block;
+  width: 0.8rem;
+  color: #9ecbff;
+  content: '▸';
+  transition: transform 140ms ease;
+}
+
+.keyboard-mode-control[open] .keyboard-mode-title::before {
+  transform: rotate(90deg);
+}
+
+.keyboard-mode-switch,
+.wiggle-mode-switch { display: flex; padding: 0; border: 0; color: inherit; background: none; cursor: pointer; }
+.keyboard-mode-switch:focus-visible { outline: 2px solid rgb(74 155 255 / 65%); outline-offset: 3px; }
+.wiggle-mode-switch:focus-visible { outline: 2px solid rgb(74 155 255 / 65%); outline-offset: 3px; }
+.keyboard-distortion-control { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.3rem 0.45rem; padding: 0 0.6rem 0.55rem; }
+.keyboard-distortion-control input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #4a9bff; }
+.keyboard-distortion-control output { color: #9ecbff; font-variant-numeric: tabular-nums; }
+.keyboard-mode-mappings { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; padding: 0 0.6rem 0.6rem; }
+.keyboard-mode-entry { display: flex; align-items: center; gap: 0.35rem; color: rgb(255 255 255 / 70%); transition: color 120ms ease, background 120ms ease; }
+.keyboard-mode-entry kbd { min-width: 1.25rem; padding: 0.08rem 0.18rem; border: 1px solid rgb(255 255 255 / 24%); border-radius: 0.18rem; text-align: center; color: #9ecbff; }
+.keyboard-mode-entry.is-triggered { color: #fff; background: rgb(74 155 255 / 35%); }
+.keyboard-mode-entry.is-triggered kbd { color: #fff; border-color: #78bdff; }
+.keyboard-space-entry { grid-column: 1 / -1; margin-top: 0.15rem; padding-top: 0.35rem; border-top: 1px solid rgb(255 255 255 / 10%); }
+.keyboard-space-entry kbd { min-width: 3rem; }
+.keyboard-remap-control { margin: 0 0.6rem 0.6rem; border-top: 1px solid rgb(255 255 255 / 12%); }
+.keyboard-remap-control summary { padding: 0.45rem 0; cursor: pointer; color: #9ecbff; }
+.keyboard-remap-list { display: grid; gap: 0.3rem; padding-bottom: 0.2rem; }
+.keyboard-remap-row { display: grid; grid-template-columns: 1fr 3.2rem; align-items: center; gap: 0.45rem; color: rgb(255 255 255 / 80%); }
+.keyboard-remap-row select { width: 100%; min-width: 0; color: inherit; border: 1px solid rgb(255 255 255 / 20%); border-radius: 0.2rem; background: rgb(0 0 0 / 22%); font: inherit; }
+.keyboard-mode-control.is-enabled .toggle-track { background: #4a9bff; }
+.keyboard-mode-control.is-enabled .toggle-thumb { transform: translateX(0.85rem); }
+
+.keyboard-name-legend {
+  position: fixed;
+  bottom: max(0.85rem, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.55rem, 2vw, 1.15rem);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 0.35rem);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    visibility 0s linear 140ms;
+  pointer-events: none;
+  user-select: none;
+}
+
+.keyboard-name-legend.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+.keyboard-name-word {
+  display: flex;
+  gap: clamp(0.1rem, 0.35vw, 0.25rem);
+}
+
+.keyboard-name-letter {
+  display: grid;
+  width: clamp(1.35rem, 3vw, 2rem);
+  height: clamp(1.55rem, 3.3vw, 2.2rem);
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 0.28rem;
+  color: rgb(255 255 255 / 78%);
+  background: rgb(20 21 20 / 78%);
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 14%);
+  font: 700 clamp(0.72rem, 1.5vw, 1rem)/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  transition:
+    color 90ms ease,
+    background 90ms ease,
+    border-color 90ms ease,
+    box-shadow 90ms ease,
+    transform 90ms ease;
+  backdrop-filter: blur(0.35rem);
+}
+
+.keyboard-name-letter.is-triggered {
+  border-color: #9ecbff;
+  color: #fff;
+  background: #4a9bff;
+  box-shadow: 0 0.2rem 1rem rgb(74 155 255 / 55%);
+  transform: translateY(-0.2rem) scale(1.08);
+}
+
+.wiggle-control {
+  position: fixed;
+  top: 8.95rem;
+  right: 0.75rem;
+  z-index: 4;
+  width: min(16rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 6.9rem);
+  overflow: auto;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.4rem;
+  color: rgb(255 255 255 / 88%);
+  background: rgb(20 21 20 / 82%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  font: 600 0.65rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  backdrop-filter: blur(0.4rem);
+}
+
+.wiggle-control summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.wiggle-control summary::-webkit-details-marker {
+  display: none;
+}
+
+.wiggle-control.is-enabled .toggle-track {
+  background: #4a9bff;
+}
+
+.wiggle-control.is-enabled .toggle-thumb {
+  transform: translateX(0.85rem);
+}
+
+.wiggle-content {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.wiggle-content > label:not(.wiggle-global) {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.wiggle-content > label span {
+  display: grid;
+  grid-template-columns: 1fr 2.5rem;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.wiggle-content output {
+  color: #9ecbff;
+  text-align: right;
+}
+
+.wiggle-region-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem 0.45rem;
+  padding-block: 0.45rem;
+  border-block: 1px solid rgb(255 255 255 / 10%);
+}
+
+.wiggle-region-list label,
+.wiggle-global {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.wiggle-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.wiggle-actions button {
+  font: inherit;
+}
+
+.advanced-settings {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 5;
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+  border: 1px solid rgb(74 155 255 / 38%);
+  border-radius: 0.45rem;
+  color: #e7f2ff;
+  background: rgb(20 21 20 / 90%);
+  font: 600 0.62rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  backdrop-filter: blur(0.4rem);
+  pointer-events: auto;
+}
+
+.advanced-settings > details > summary {
+  padding: 0.6rem 0.7rem;
+  cursor: pointer;
+  color: #e7f2ff;
+}
+
+.advanced-settings-content {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0 0.55rem 0.55rem;
+}
+
+.advanced-section {
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.35rem;
+  background: rgb(255 255 255 / 4%);
+}
+
+.advanced-section > summary {
+  padding: 0.48rem 0.55rem;
+  cursor: pointer;
+  color: rgb(255 255 255 / 88%);
+}
+
+.advanced-section-content {
+  padding: 0 0.55rem 0.55rem;
+}
+
+.advanced-section-content .follow-toggle {
+  position: static;
+  width: fit-content;
+  margin-top: 0.1rem;
+}
+
+.advanced-tool {
+  color: rgb(255 255 255 / 88%);
+}
+
+.squinting-control {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.squinting-enabled {
+  margin-bottom: 0.1rem;
+}
+
+.squinting-group {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.35rem;
+}
+
+.squinting-group legend {
+  padding: 0 0.25rem;
+  color: #a9cfff;
+}
+
+.squinting-group label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 2.3rem auto;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+}
+
+.squinting-group input {
+  min-width: 0;
+  width: 100%;
+}
+
+.squinting-group output {
+  color: #a9cfff;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.squinting-group small {
+  color: #a9cfff;
+}
+
+.squinting-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.squinting-actions button {
+  padding: 0.4rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.3rem;
+  color: inherit;
+  background: rgb(0 0 0 / 22%);
+  font: inherit;
+  cursor: pointer;
+}
+
+.squinting-control pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 0.45rem;
+  overflow: auto;
+  color: #d9ebff;
+  background: rgb(0 0 0 / 25%);
+  font: 500 0.58rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.squinting-save-status {
+  min-height: 1em;
+  margin: 0;
+  color: #a9cfff;
+  font-size: 0.62rem;
+}
+
+.idle-debug-control {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.idle-delay-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem 2.4rem auto;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.idle-delay-field input {
+  min-width: 0;
+  width: 100%;
+}
+
+.idle-delay-field output,
+.idle-delay-field small,
+.idle-debug-control > small {
+  color: #a9cfff;
+  font-variant-numeric: tabular-nums;
+}
+
+.eye-align-control {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.eye-align-mode,
+.eye-align-eye {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.35rem;
+}
+
+.eye-align-mode > legend {
+  color: #a9cfff;
+}
+
+.eye-align-eye > legend {
+  color: rgb(255 255 255 / 82%);
+}
+
+.eye-align-mode legend,
+.eye-align-eye legend {
+  padding: 0 0.25rem;
+}
+
+.eye-align-eye label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 2.4rem auto;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+}
+
+.eye-align-eye input {
+  min-width: 0;
+  width: 100%;
+}
+
+.eye-align-eye output,
+.eye-align-eye small {
+  color: #a9cfff;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.eye-align-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.eye-align-actions button {
+  padding: 0.4rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.3rem;
+  color: inherit;
+  background: rgb(0 0 0 / 22%);
+  font: inherit;
+  cursor: pointer;
+}
+
+.eye-align-control pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 0.45rem;
+  overflow: auto;
+  color: #d9ebff;
+  background: rgb(0 0 0 / 25%);
+  font: 500 0.58rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.hair-alpha-debug-control {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.hair-alpha-debug-control small {
+  color: #a9cfff;
+}
+
+.hair-edge-rgb-repair,
+.hair-edge-alpha-compensation {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.35rem;
+}
+
+.hair-edge-rgb-repair legend,
+.hair-edge-alpha-compensation legend {
+  padding: 0 0.25rem;
+  color: #a9cfff;
+}
+
+.hair-alpha-debug-control .advanced-field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.hair-alpha-debug-control select {
+  width: 100%;
+  color: inherit;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 0.2rem;
+  background: rgb(0 0 0 / 22%);
+  font: inherit;
+}
+
+.hair-texture-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.35rem;
+}
+
+.hair-texture-mode-switch button {
+  min-width: 0;
+  padding: 0.38rem 0.45rem;
+  color: rgb(255 255 255 / 72%);
+  border: 0;
+  background: rgb(0 0 0 / 18%);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hair-texture-mode-switch button + button {
+  border-left: 1px solid rgb(255 255 255 / 15%);
+}
+
+.hair-texture-mode-switch button[aria-pressed='true'] {
+  color: white;
+  background: #347fe3;
+}
+
+.hair-fringe-toggle {
+  margin: 0;
+}
+
+.hair-fringe-fields {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.hair-fringe-fields label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 2.3rem;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+}
+
+.hair-fringe-fields input {
+  min-width: 0;
+  width: 100%;
+}
+
+.hair-fringe-fields output {
+  color: #a9cfff;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hair-material-tuning-control {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hair-material-summary {
+  color: #a9cfff;
+}
+
+.hair-material-fields {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.hair-material-fields label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 2.3rem;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+}
+
+.hair-material-fields input {
+  min-width: 0;
+  width: 100%;
+}
+
+.hair-material-fields output {
+  color: #a9cfff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hair-material-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.hair-material-actions button {
+  padding: 0.4rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.3rem;
+  color: inherit;
+  background: rgb(0 0 0 / 22%);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hair-material-config-output {
+  max-width: 100%;
+  margin: 0;
+  padding: 0.45rem;
+  overflow: auto;
+  color: #d9ebff;
+  background: rgb(0 0 0 / 25%);
+  font: 500 0.58rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.camera-light-debug,
+.blink-debug-content {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.camera-light-debug label {
+  cursor: pointer;
+}
+
+.camera-light-debug small,
+.blink-debug-control small,
+.spring-debug-control small,
+.deformation-range-tuning small {
+  color: #ffcf82;
+}
+
+.spring-debug-content {
+  display: grid;
+  grid-template-columns: auto 5.5rem;
+  gap: 0.3rem 0.45rem;
+}
+
+.spring-debug-content label {
+  display: contents;
+}
+
+.spring-debug-control button,
+.spring-debug-control small {
+  grid-column: 1 / -1;
+}
+
+.spring-debug-control input,
+.spring-debug-control select,
+.blink-debug-control button,
+.blink-debug-control input {
+  min-width: 0;
+  font: inherit;
+}
+
+.wiggle-debug-content {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.wiggle-debug-content > label:not(:first-child) {
+  display: grid;
+  grid-template-columns: 1fr 6rem;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.wiggle-debug-content input,
+.wiggle-debug-content select,
+.wiggle-debug-content button {
+  min-width: 0;
+  font: inherit;
+}
+
+.wiggle-debug-content small {
+  color: #ffcf82;
+}
+
+.range-tuning-content {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0 0.7rem 0.7rem;
+}
+
+.range-tuning-content > label,
+.range-debug-toggle {
+  display: grid;
+  grid-template-columns: 1fr 8rem;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.range-axis-note {
+  margin: 0;
+  color: #a9cfff;
+}
+
+.range-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.range-input-grid label {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.range-input-grid input,
+.range-tuning-content select {
+  min-width: 0;
+  font: inherit;
+}
+
+.range-button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+}
+
+.range-button-grid button,
+.deformation-range-tuning button {
+  font: inherit;
+}
+
+.range-button-grid [data-hide-tuning] {
+  grid-column: 1 / -1;
+}
+
+.deformation-range-tuning small {
+  color: #ffcf82;
+}
+
+.deformation-range-tuning pre {
+  max-height: 12rem;
+  margin: 0;
+  overflow: auto;
+  padding: 0.45rem;
+  background: rgb(0 0 0 / 28%);
+  white-space: pre-wrap;
+}
+
+.deformation-range-tuning.is-locked {
+  border-color: rgb(255 207 130 / 55%);
+}
+
+.deformation-mode-control button {
+  padding: 0.42rem 0.5rem;
+  border: 0;
+  border-radius: 0.28rem;
+  color: rgb(255 255 255 / 58%);
+  background: transparent;
+  font: 600 0.65rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.deformation-mode-control button:hover {
+  color: rgb(255 255 255 / 84%);
+}
+
+.deformation-mode-control button[aria-pressed='true'] {
+  color: #fff;
+  background: #4a9bff;
+}
+
+.deformation-mode-control button:focus-visible {
+  outline: 2px solid rgb(74 155 255 / 75%);
+  outline-offset: 2px;
+}
+
+.model-warning {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 3;
+  max-width: 30rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgb(255 190 80 / 42%);
+  border-radius: 0.4rem;
+  color: #ffe2a8;
+  background: rgb(35 28 16 / 88%);
+  font: 600 0.66rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
