@@ -361,29 +361,35 @@ canvas {
   top: 0.75rem;
   left: 0.75rem;
   z-index: 5;
-  width: min(24rem, calc(100vw - 1.5rem));
-  max-height: calc(100vh - 1.5rem);
-  overflow: auto;
-  border: 1px solid rgb(74 155 255 / 38%);
-  border-radius: 0.45rem;
+  width: fit-content;
   color: #e7f2ff;
-  background: rgb(20 21 20 / 90%);
   font: 600 0.62rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
-  backdrop-filter: blur(0.4rem);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .advanced-settings > details > summary {
-  padding: 0.6rem 0.7rem;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 8px;
   cursor: pointer;
-  color: #e7f2ff;
+  color: #fff;
+  pointer-events: auto;
 }
 
 .advanced-settings-content {
   display: grid;
   gap: 0.35rem;
-  padding: 0 0.55rem 0.55rem;
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 4.75rem);
+  overflow: auto;
+  padding: 0.55rem;
+  border: 1px solid rgb(74 155 255 / 38%);
+  border-radius: 0.45rem;
+  background: rgb(20 21 20 / 90%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 12%);
+  backdrop-filter: blur(0.4rem);
+  pointer-events: auto;
 }
 
 .advanced-section {
