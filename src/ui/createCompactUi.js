@@ -1,6 +1,6 @@
 import { COMPACT_UI_CONFIG as config } from './compactUiConfig.js';
 
-export function createCompactUi(container) {
+export function createCompactUi(container, { reserveTopSpace = false } = {}) {
   container.classList.add('has-compact-ui');
   const root = document.createElement('aside');
   root.className = 'selfie-compact-ui';
@@ -22,7 +22,7 @@ export function createCompactUi(container) {
     root.style.setProperty('--selfie-ui-scale', scale);
     root.style.setProperty('--compact-panel-width', `${Math.min(284, (width - config.edgeInset * 2) / scale)}px`);
     root.style.setProperty('--selfie-ui-inset', `${config.edgeInset}px`);
-    root.style.setProperty('--selfie-ui-top', `${compact ? config.compactTopInset : config.edgeInset}px`);
+    root.style.setProperty('--selfie-ui-top', `${compact || reserveTopSpace ? config.compactTopInset : config.edgeInset}px`);
     root.classList.toggle('is-compact', compact);
     const availableHeight = (height - config.compactTopInset - config.edgeInset) / scale;
     const menuHeight = Math.min(151, Math.max(88, availableHeight - 156));
