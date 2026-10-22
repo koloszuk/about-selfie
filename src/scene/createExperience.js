@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createEnvironment } from './createEnvironment.js';
 import { createPostProcessing } from './createPostProcessing.js';
-import { IS_EMBED_MODE } from '../runtime/embedMode.js';
+import { IS_EMBED_MODE, getPublicAssetUrl } from '../runtime/embedMode.js';
+import { PRESENTATION_CONFIG } from './presentationConfig.js';
+import { createCameraFraming } from './createCameraFraming.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
   dark: 0x171717,
 });
 export const BACKGROUND_MODE_DEFAULT = 'dark';
-const FOCAL_LENGTH_MM = 50;
 const MAX_PIXEL_RATIO = 2;
 
 export const SUPPLEMENTARY_LIGHTS_ENABLED = true;
@@ -21,6 +22,10 @@ export const RIM_LIGHT_INTENSITY = 1.4;
 export function createExperience(container) {
   const scene = new THREE.Scene();
   const backgroundColor = new THREE.Color(BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT]);
+  container.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.backgroundAsset)}")`;
+  container.style.backgroundSize = 'cover';
+  container.style.backgroundPosition = 'center';
+  container.style.backgroundRepeat = 'no-repeat';
   if (IS_EMBED_MODE) {
     scene.background = null;
     container.style.backgroundColor = 'transparent';
@@ -29,6 +34,8 @@ export function createExperience(container) {
     scene.background = backgroundColor;
     container.style.backgroundColor = `#${backgroundColor.getHexString()}`;
   }
+  // The image is a viewer layer, independent of orbit and environment lighting.
+  scene.background = null;
 
   const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
   camera.position.set(0, 0.05, 7.2);
@@ -38,10 +45,10 @@ export function createExperience(container) {
 
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
-    alpha: IS_EMBED_MODE,
+    alpha: true,
     premultipliedAlpha: false,
   });
-  if (IS_EMBED_MODE) renderer.setClearColor(0x000000, 0);
+  renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -69,6 +76,7 @@ export function createExperience(container) {
   controls.minDistance = 2;
   controls.maxDistance = 8;
   controls.target.set(0, 0, 0);
+  const framing = createCameraFraming({ camera, controls, config: PRESENTATION_CONFIG.camera });
 
   const lighting = addLighting(scene);
   const environment = createEnvironment({ scene, controls });
@@ -79,9 +87,7 @@ export function createExperience(container) {
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
 
-    camera.aspect = width / height;
-    // setFocalLength uses the current aspect and the default 35 mm film gauge.
-    camera.setFocalLength(FOCAL_LENGTH_MM);
+    framing.resize(width, height);
     const devicePixelRatio = window.devicePixelRatio;
     const pixelRatio = Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
     renderer.setPixelRatio(pixelRatio);
@@ -121,13 +127,17 @@ export function createExperience(container) {
     if (IS_EMBED_MODE) return;
     const color = BACKGROUND_COLORS[mode] ?? BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT];
     backgroundColor.setHex(color);
-    scene.background = backgroundColor;
+    scene.background = null;
     container.style.backgroundColor = `#${color.toString(16).padStart(6, '0')}`;
   }
 
   return {
     scene, camera, renderer, controls, environment, lighting, postProcessing,
     resize, setBackgroundMode, dispose,
+    frameModel(model) {
+      framing.setModel(model);
+      resize();
+    },
   };
 }
 
