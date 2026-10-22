@@ -1,5 +1,6 @@
 const SECTIONS = [
   ['follow', 'Cursor Tracking'],
+  ['keyboard', 'Keyboard Settings'],
   ['eyeAlign', 'Eye Align'],
   ['squinting', 'Squinting'],
   ['range', 'Deformation Range Tuning'],
