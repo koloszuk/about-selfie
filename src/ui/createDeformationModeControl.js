@@ -12,18 +12,28 @@ export function createDeformationModeControl(parent, onChange) {
     <button type="button" data-mode="release" aria-label="Release deformations with spring return" aria-pressed="false">
       <span aria-hidden="true">🖐️</span>
     </button>
-    <span class="compact-mode-track" aria-hidden="true"><span></span></span>
+    <button type="button" class="compact-mode-track" role="switch"
+      aria-label="Toggle Hold and Release" aria-checked="false"><span aria-hidden="true"></span></button>
   `;
 
-  const buttons = [...control.querySelectorAll('button')];
+  const buttons = [...control.querySelectorAll('[data-mode]')];
+  const centerSwitch = control.querySelector('.compact-mode-track');
+  let activeMode = DEFAULT_DEFORMATION_MODE;
 
   function setActiveMode(mode, notify = true) {
+    activeMode = mode;
     control.classList.toggle('is-release', mode === 'release');
+    centerSwitch.setAttribute('aria-checked', String(mode === 'release'));
     for (const button of buttons) {
       button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
     }
     if (notify) onChange(mode);
   }
+
+  centerSwitch.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setActiveMode(activeMode === 'hold' ? 'release' : 'hold');
+  });
 
   for (const button of buttons) {
     button.addEventListener('click', () => setActiveMode(button.dataset.mode));

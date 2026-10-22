@@ -18,14 +18,30 @@ export function createCompactUi(container, { reserveTopSpace = false } = {}) {
     const compact = width < config.compactBelowWidth || matchMedia('(pointer: coarse)').matches;
     const ratio = Math.min(width / config.referenceWidth, height / config.referenceHeight);
     const scale = Math.min(config.maxScale,
-      Math.max(compact ? config.touchMinScale : config.minScale, ratio));
+      Math.max(compact ? config.touchMinScale : config.minScale, ratio * config.scaleMultiplier));
+    const panelWidth = Math.min(284, (width - config.edgeInset * 2) / scale);
+    const rootWidth = compact ? panelWidth : 158;
+    const pillCenterX = compact ? rootWidth - 46.5 : 46.5;
+    const pillCenterY = compact ? 22 : 14.5;
+    let left = width * config.horizontalCenter - pillCenterX * scale;
+    // Menus follow their controls but open left when the right side is tight.
+    const menuLeft = !compact && left + rootWidth * scale > width - config.edgeInset;
+    const minimumLeft = config.edgeInset + (menuLeft ? 37 * scale : 0);
+    const maximumRight = compact || !menuLeft ? rootWidth : 93;
+    left = Math.max(minimumLeft, Math.min(left, width - config.edgeInset - maximumRight * scale));
+    const minimumTop = reserveTopSpace ? config.compactTopInset : config.edgeInset;
+    const requiredHeight = compact ? 200 : 172;
+    const maximumTop = Math.max(minimumTop, height - config.edgeInset - requiredHeight * scale);
+    const top = Math.max(minimumTop, Math.min(height * config.firstControlCenterY - pillCenterY * scale, maximumTop));
     root.style.setProperty('--selfie-ui-scale', scale);
-    root.style.setProperty('--compact-panel-width', `${Math.min(284, (width - config.edgeInset * 2) / scale)}px`);
+    root.style.setProperty('--compact-panel-width', `${panelWidth}px`);
     root.style.setProperty('--selfie-ui-inset', `${config.edgeInset}px`);
-    root.style.setProperty('--selfie-ui-top', `${compact || reserveTopSpace ? config.compactTopInset : config.edgeInset}px`);
+    root.style.setProperty('--selfie-ui-left', `${left}px`);
+    root.style.setProperty('--selfie-ui-top', `${top}px`);
     root.classList.toggle('is-compact', compact);
-    const availableHeight = (height - config.compactTopInset - config.edgeInset) / scale;
-    const menuHeight = Math.min(151, Math.max(88, availableHeight - 156));
+    root.classList.toggle('is-menu-left', menuLeft);
+    const availableHeight = (height - top - config.edgeInset) / scale;
+    const menuHeight = Math.min(151, Math.max(44, availableHeight - 156));
     root.style.setProperty('--compact-menu-max-height', `${menuHeight}px`);
     // Dock the touch keyboard low in portrait viewers, away from the eyes.
     root.style.setProperty('--compact-keyboard-panel-top', `${Math.max(52, availableHeight - 104 - menuHeight)}px`);

@@ -3,10 +3,13 @@
 export const COMPACT_UI_CONFIG = Object.freeze({
   referenceWidth: 715,
   referenceHeight: 600,
-  minScale: 0.75,
-  maxScale: 1.2,
+  scaleMultiplier: 1.2, // Uniform 20% increase over UI v02.
+  minScale: 0.9,
+  maxScale: 1.44,
   compactBelowWidth: 520,
-  touchMinScale: 1,
+  touchMinScale: 1.2,
+  horizontalCenter: 0.81, // Center of the first pill, relative to the viewer.
+  firstControlCenterY: 0.51, // Static resting-eye-level composition anchor.
   edgeInset: 17,
   compactTopInset: 64,
   highlightReleaseMs: 450,
