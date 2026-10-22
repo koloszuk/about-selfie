@@ -36,6 +36,8 @@ import { createEyeAlignControl } from './ui/createEyeAlignControl.js';
 import { ENABLE_DEFORMATION_RANGE_TUNING_UI } from './interaction/deformationControlConfig.js';
 import { IS_EMBED_MODE } from './runtime/embedMode.js';
 import { createCompactUi } from './ui/createCompactUi.js';
+import { createAutoOrbit } from './scene/createAutoOrbit.js';
+import { PRESENTATION_CONFIG } from './scene/presentationConfig.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -74,6 +76,7 @@ let squintingControl;
 let idleDebugControl;
 let eyeAlignController;
 let eyeAlignControl;
+let autoOrbit;
 
 async function initialize() {
   status.hidden = false;
@@ -122,6 +125,11 @@ async function initialize() {
       fallbackLight: experience.lighting.frontal,
     });
     experience.frameModel(head);
+    autoOrbit = createAutoOrbit({
+      camera: experience.camera, controls: experience.controls,
+      canvas: experience.renderer.domElement, pointer,
+      model: head, config: PRESENTATION_CONFIG.autoOrbit,
+    });
     cameraLightDebugControl = createCameraLightDebugControl(
       advancedSettings.getSection('light'), cameraLightFollower,
     );
@@ -264,6 +272,7 @@ function animate() {
   const delta = Math.min(clock.getDelta(), 0.1);
   performanceAnalytics?.beginFrame();
   experience.controls.update();
+  autoOrbit?.update(delta);
   experience.environment.update();
   idleController?.update(delta);
   headFollower?.update(delta);
