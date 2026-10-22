@@ -3,7 +3,9 @@ import {
   ENABLE_DEFORMATION_LIMITS_LOCAL_STORAGE,
 } from '../interaction/deformationControlConfig.js';
 
-const STORAGE_KEY = 'about-selfie.deformation-limits.v1';
+// v1 is retained untouched, but cannot override the finalized source snapshot.
+// Future intentional edits persist normally under this new range-only key.
+const STORAGE_KEY = 'about-selfie.deformation-limits.v2';
 const LIMIT_KEYS = ['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ'];
 
 export function createDeformationRangeTuningControl(parent, deformationControls) {
