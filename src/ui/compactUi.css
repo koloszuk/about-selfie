@@ -123,7 +123,8 @@
 html[data-wiggle-scrub-cursor="horizontal"], html[data-wiggle-scrub-cursor="horizontal"] * { cursor: ew-resize !important; }
 html[data-wiggle-scrub-cursor="vertical"], html[data-wiggle-scrub-cursor="vertical"] * { cursor: ns-resize !important; }
 .compact-axis-pad svg { display: block; width: 42px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.compact-axis-pad.is-dragging { color: #8b771e; background: rgb(197 169 48 / 28%); box-shadow: 0 0 0 2px rgb(197 169 48 / 60%); }
+.compact-axis-pad[data-active-axis="horizontal"] [data-arrow-axis="horizontal"],
+.compact-axis-pad[data-active-axis="vertical"] [data-arrow-axis="vertical"] { stroke: #e6ce28; }
 .compact-keyboard-name {
   position: absolute;
   left: 0;
