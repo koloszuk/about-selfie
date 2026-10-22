@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import './ui/compactUi.css';
 import { createBlinkController } from './animation/createBlinkController.js';
 import { createIdleController } from './animation/createIdleController.js';
 import { createBrowDeformer } from './deformation/createBrowDeformer.js';
@@ -34,6 +35,7 @@ import { createEyeAlignController } from './interaction/createEyeAlignController
 import { createEyeAlignControl } from './ui/createEyeAlignControl.js';
 import { ENABLE_DEFORMATION_RANGE_TUNING_UI } from './interaction/deformationControlConfig.js';
 import { IS_EMBED_MODE } from './runtime/embedMode.js';
+import { createCompactUi } from './ui/createCompactUi.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -82,6 +84,7 @@ async function initialize() {
     const head = await createHead(undefined, { renderer: experience.renderer });
     const modelInfo = head.userData.inspection;
     const advancedSettings = createAdvancedSettings(container);
+    const compactUi = createCompactUi(container, { reserveTopSpace: !IS_EMBED_MODE });
     if (!IS_EMBED_MODE) {
       createBackgroundToggle(container, experience.setBackgroundMode, {
         defaultMode: BACKGROUND_MODE_DEFAULT,
@@ -180,13 +183,14 @@ async function initialize() {
       advancedSettings.getSection('follow'),
       eyeFollower.setEnabled,
     );
-    wiggleControl = createWiggleControl(container, deformationControls);
-    const deformationModeControl = createDeformationModeControl(container, deformationControls.setMode);
+    wiggleControl = createWiggleControl(compactUi.element, deformationControls, advancedSettings.getSection('wiggle'));
+    const deformationModeControl = createDeformationModeControl(compactUi.element, deformationControls.setMode);
     keyboardModeControl = createKeyboardModeControl(
-      container,
+      compactUi.element,
       deformationControls,
       blinkController,
       eyeFollower,
+      advancedSettings.getSection('keyboard'),
     );
     springDebugControl = createSpringDebugControl(
       advancedSettings.getSection('spring'),
