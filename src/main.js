@@ -118,6 +118,7 @@ async function initialize() {
       importedLights: modelInfo.importedLights,
       fallbackLight: experience.lighting.frontal,
     });
+    experience.frameModel(head);
     cameraLightDebugControl = createCameraLightDebugControl(
       advancedSettings.getSection('light'), cameraLightFollower,
     );
