@@ -14,6 +14,8 @@ export function createWiggleControl(parent, deformationControls, settingsParent)
       <button type="button" class="compact-axis-pad" aria-label="Adjust Wiggle speed and intensity"
         aria-describedby="wiggle-pad-help">
         <svg viewBox="0 0 42 18" aria-hidden="true"><path d="M7 5 3 9l4 4M13 5l4 4-4 4M28 6l4-4 4 4M28 12l4 4 4-4"/></svg>
+        <span class="compact-scrub-zone" data-scrub-axis="horizontal" aria-hidden="true"></span>
+        <span class="compact-scrub-zone" data-scrub-axis="vertical" aria-hidden="true"></span>
       </button>
       <span id="wiggle-pad-help" class="sr-only">Drag right for more speed, up for more intensity. Arrow keys also adjust both settings.</span>
     </div>`;
@@ -32,8 +34,12 @@ export function createWiggleControl(parent, deformationControls, settingsParent)
     if (event.button !== 0 || drag) return;
     const settings = deformationControls.getWiggleSettings();
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+      previousCursor: document.documentElement.getAttribute('data-wiggle-scrub-cursor'),
       speed: settings.speed, intensity: settings.intensity,
       scale: parent.getBoundingClientRect().width / parent.offsetWidth };
+    // Cursor zones describe the gesture without changing the existing 2D drag math.
+    const axis = event.target.closest('[data-scrub-axis]')?.dataset.scrubAxis || 'horizontal';
+    document.documentElement.setAttribute('data-wiggle-scrub-cursor', axis);
     pad.setPointerCapture(event.pointerId);
     pad.classList.add('is-dragging');
     event.preventDefault();
@@ -52,6 +58,8 @@ export function createWiggleControl(parent, deformationControls, settingsParent)
   function endDrag(event) {
     if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.id)) return;
     const id = drag.id;
+    if (drag.previousCursor === null) document.documentElement.removeAttribute('data-wiggle-scrub-cursor');
+    else document.documentElement.setAttribute('data-wiggle-scrub-cursor', drag.previousCursor);
     drag = null;
     pad.classList.remove('is-dragging');
     if (pad.hasPointerCapture(id)) pad.releasePointerCapture(id);

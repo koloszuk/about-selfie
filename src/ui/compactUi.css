@@ -116,7 +116,12 @@
 .compact-keyboard-symbol svg { stroke-width: 1; }
 .compact-keyboard-symbol .piano-black-keys { fill: currentColor; stroke: none; }
 .compact-wiggle-pad { position: absolute; left: 74px; top: 0; width: 56px; height: 29px; }
-.selfie-compact-ui .compact-axis-pad { width: 56px; height: 29px; background: transparent; border-radius: inherit; }
+.selfie-compact-ui .compact-axis-pad { position: relative; width: 56px; height: 29px; background: transparent; border-radius: inherit; }
+.compact-scrub-zone { position: absolute; top: 0; bottom: 0; width: 50%; }
+.compact-scrub-zone[data-scrub-axis="horizontal"] { left: 0; cursor: ew-resize; }
+.compact-scrub-zone[data-scrub-axis="vertical"] { right: 0; cursor: ns-resize; }
+html[data-wiggle-scrub-cursor="horizontal"], html[data-wiggle-scrub-cursor="horizontal"] * { cursor: ew-resize !important; }
+html[data-wiggle-scrub-cursor="vertical"], html[data-wiggle-scrub-cursor="vertical"] * { cursor: ns-resize !important; }
 .compact-axis-pad svg { display: block; width: 42px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .compact-axis-pad.is-dragging { color: #8b771e; background: rgb(197 169 48 / 28%); box-shadow: 0 0 0 2px rgb(197 169 48 / 60%); }
 .compact-keyboard-name {
