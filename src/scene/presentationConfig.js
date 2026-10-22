@@ -4,7 +4,9 @@ export const PRESENTATION_CONFIG = Object.freeze({
   // replacing the PNG so cached images refresh without disabling caching.
   backgroundAsset: 'BG/BG_placeholder_v01.png?v=7d2dfcb04b14',
   autoOrbit: Object.freeze({
-    initialHorizontalDeg: 45, // Positive means the face points screen-right.
+    initialHorizontalDeg: 35, // Positive means the face points screen-right.
+    initialPitchDeg: -2.5, // Camera elevation: 4° below the previous +1.5°,
+    // giving a subtle chin lift without changing the head/idle transforms.
     leftLimitDeg: -45,
     rightLimitDeg: 45,
     maxSpeedDegPerSecond: 2,

@@ -28,7 +28,17 @@ export function createAutoOrbit({ camera, controls, canvas, pointer, model, conf
     camera.lookAt(controls.target);
     camera.updateMatrixWorld();
   }
-  applyAngle(THREE.MathUtils.degToRad(config.initialHorizontalDeg));
+  // Set the independent initial elevation once, preserving fitted distance.
+  // Subsequent auto-orbit changes only azimuth; manual pitch remains available.
+  offset.copy(camera.position).sub(controls.target);
+  const distance = offset.length();
+  const pitch = THREE.MathUtils.degToRad(config.initialPitchDeg);
+  const yaw = -THREE.MathUtils.degToRad(config.initialHorizontalDeg);
+  offset.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch),
+    Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(distance);
+  camera.position.copy(controls.target).add(offset);
+  camera.lookAt(controls.target);
+  camera.updateMatrixWorld();
 
   controls.addEventListener('start', () => { manual = true; });
   controls.addEventListener('end', () => { manual = false; });
