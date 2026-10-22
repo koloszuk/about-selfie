@@ -1,0 +1,159 @@
+#app.has-compact-ui { position: relative; }
+.selfie-compact-ui {
+  position: absolute;
+  top: var(--selfie-ui-top, 17px);
+  right: var(--selfie-ui-inset, 17px);
+  z-index: 4;
+  width: 158px;
+  height: 172px;
+  transform: scale(var(--selfie-ui-scale, 1));
+  transform-origin: top right;
+  pointer-events: none;
+  color: #505050;
+  font-family: Inter, Arial, sans-serif;
+}
+.selfie-compact-ui button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.selfie-compact-ui button:focus-visible {
+  outline: 2px solid #8b771e;
+  outline-offset: 3px;
+}
+.compact-mode-control, .compact-toggle, .compact-wiggle-pad, .compact-keyboard-name {
+  background: rgb(241 241 241 / 50%);
+  border-radius: 14.5px;
+  pointer-events: auto;
+}
+.compact-mode-control {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 93px;
+  height: 29px;
+}
+.compact-mode-control button {
+  position: absolute;
+  top: 0;
+  width: 30px;
+  height: 29px;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  opacity: .4;
+  transition: opacity 160ms ease;
+}
+.compact-mode-control button:first-child { left: 4px; }
+.compact-mode-control button:nth-child(2) { right: 4px; }
+.compact-mode-control button[aria-pressed='true'] { opacity: 1; }
+.compact-mode-track, .compact-toggle-track {
+  position: absolute;
+  width: 23px;
+  height: 13px;
+  background: #acacac;
+  border-radius: 6.5px;
+  pointer-events: none;
+}
+.compact-mode-track { left: 35px; top: 8px; }
+.compact-mode-track span, .compact-toggle-track span {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 150ms ease;
+}
+.compact-mode-control.is-release .compact-mode-track span,
+.compact-toggle[aria-checked='true'] .compact-toggle-track span { transform: translateX(10px); }
+.compact-wiggle-control { position: absolute; left: 28px; top: 41px; }
+.compact-keyboard-control { position: absolute; left: 28px; top: 82px; }
+.selfie-compact-ui .compact-toggle {
+  position: relative;
+  display: block;
+  width: 65px;
+  height: 29px;
+  background: rgb(241 241 241 / 50%);
+  border-radius: 14.5px;
+  pointer-events: auto;
+}
+.compact-toggle-track { left: 7px; top: 8px; transition: background 150ms ease; }
+.compact-toggle[aria-checked='true'] .compact-toggle-track { background: #c5a930; }
+.compact-wiggle-symbol, .compact-keyboard-symbol {
+  position: absolute;
+  left: 37px;
+  top: 5px;
+  width: 18px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 19px;
+}
+.compact-keyboard-symbol { font-size: 22px; }
+.compact-wiggle-symbol svg, .compact-keyboard-symbol svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.compact-keyboard-symbol svg { stroke-width: 1; }
+.compact-keyboard-symbol .piano-black-keys { fill: currentColor; stroke: none; }
+.compact-wiggle-pad { position: absolute; left: 74px; top: 0; width: 56px; height: 29px; }
+.selfie-compact-ui .compact-axis-pad { width: 56px; height: 29px; background: transparent; border-radius: inherit; }
+.compact-axis-pad svg { display: block; width: 42px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.compact-axis-pad.is-dragging { color: #8b771e; background: rgb(197 169 48 / 28%); box-shadow: 0 0 0 2px rgb(197 169 48 / 60%); }
+.compact-keyboard-name {
+  position: absolute;
+  left: 0;
+  top: 40px;
+  width: 130px;
+  padding: 7px;
+  border-radius: 12px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease, visibility 0s linear 140ms;
+}
+.compact-keyboard-name.is-visible { opacity: 1; visibility: visible; transition-delay: 0s; }
+.compact-keyboard-name .keyboard-name-word { display: flex; gap: 1px; }
+.compact-keyboard-name .keyboard-name-word + .keyboard-name-word { margin-top: 3px; }
+.selfie-compact-ui .compact-keyboard-letter {
+  display: grid;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 17px;
+  place-items: center;
+  border-radius: 6px;
+  color: #fff;
+  background: rgb(236 236 236 / 60%);
+  font: 700 12px/1 Inter, Arial, sans-serif;
+  transition: background-color var(--key-release-duration, 450ms) cubic-bezier(.2, .7, .3, 1);
+}
+.selfie-compact-ui .compact-keyboard-letter.is-triggered { background: #c5a930; transition-duration: 0ms; }
+.compact-keyboard-settings .keyboard-mode-mappings { padding-top: .4rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.selfie-compact-ui.is-compact { width: var(--compact-panel-width, 284px); height: 340px; }
+.is-compact .compact-mode-control { left: auto; right: 0; height: 44px; background: transparent; }
+.is-compact .compact-mode-control::before { content: ''; position: absolute; inset: 7.5px 0; border-radius: 14.5px; background: rgb(241 241 241 / 50%); }
+.is-compact .compact-mode-control button { height: 44px; }
+.is-compact .compact-mode-control button:first-child { left: 0; width: 44px; }
+.is-compact .compact-mode-control button:nth-child(2) { right: 0; width: 44px; }
+.is-compact .compact-mode-track { top: 15.5px; }
+.is-compact .compact-wiggle-control { left: auto; right: 0; top: 52px; }
+.is-compact .compact-keyboard-control { left: auto; right: 0; top: 104px; }
+.is-compact .compact-toggle { height: 44px; background: transparent; }
+.is-compact .compact-toggle::before { content: ''; position: absolute; inset: 7.5px 0; border-radius: 14.5px; background: rgb(241 241 241 / 50%); }
+.is-compact .compact-toggle-track { top: 15.5px; }
+.is-compact .compact-wiggle-symbol, .is-compact .compact-keyboard-symbol { top: 12.5px; }
+.is-compact .compact-wiggle-pad { left: auto; right: 74px; height: 44px; background: transparent; }
+.is-compact .compact-wiggle-pad::before { content: ''; position: absolute; inset: 7.5px 0; border-radius: 14.5px; background: rgb(241 241 241 / 50%); pointer-events: none; }
+.is-compact .compact-axis-pad { position: relative; height: 44px; }
+.is-compact .compact-keyboard-name { left: auto; right: 0; top: var(--compact-keyboard-panel-top, 52px); width: var(--compact-panel-width, 284px); max-height: var(--compact-menu-max-height); overflow-y: auto; overscroll-behavior: contain; }
+.is-compact .compact-keyboard-name .keyboard-name-word { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 2px; }
+.is-compact .compact-keyboard-letter { width: 100%; height: 44px; font-size: 16px; }

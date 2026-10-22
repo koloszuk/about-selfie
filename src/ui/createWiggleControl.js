@@ -1,85 +1,104 @@
-export function createWiggleControl(parent, deformationControls) {
-  const control = document.createElement('aside');
-  control.className = 'wiggle-control';
+import { COMPACT_UI_CONFIG as config } from './compactUiConfig.js';
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+export function createWiggleControl(parent, deformationControls, settingsParent) {
+  const control = document.createElement('div');
+  control.className = 'compact-wiggle-control';
   control.innerHTML = `
-    <details>
-      <summary>
-        <span>Wiggle</span>
-        <button type="button" class="wiggle-mode-switch" role="switch"
-          aria-label="Enable Wiggle" aria-checked="false">
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </button>
-      </summary>
-      <div class="wiggle-content">
-        <label>Speed
-          <span><input type="range" data-wiggle-speed min="0.2" max="30" step="0.05"><output data-wiggle-speed-value></output></span>
-        </label>
-        <label>Intensity
-          <span><input type="range" data-wiggle-intensity min="0" max="2" step="0.01"><output data-wiggle-intensity-value></output></span>
-        </label>
-        <div class="wiggle-region-list">
-          ${deformationControls.controls.map((region) => `
-            <label><input type="checkbox" data-wiggle-region="${region.id}" checked> ${region.label}</label>
-          `).join('')}
-        </div>
-        <div class="wiggle-actions">
-          <button type="button" data-wiggle-all-on>All On</button>
-          <button type="button" data-wiggle-all-off>All Off</button>
-        </div>
-      </div>
-    </details>
-  `;
-  const enabledSwitch = control.querySelector('.wiggle-mode-switch');
-  const speed = control.querySelector('[data-wiggle-speed]');
-  const intensity = control.querySelector('[data-wiggle-intensity]');
-  const speedValue = control.querySelector('[data-wiggle-speed-value]');
-  const intensityValue = control.querySelector('[data-wiggle-intensity-value]');
-  const regionInputs = [...control.querySelectorAll('[data-wiggle-region]')];
-
-  enabledSwitch.addEventListener('click', (event) => {
-    event.stopPropagation();
-    deformationControls.setWiggleEnabled(
-      !deformationControls.getWiggleSettings().enabled,
-    );
+    <button class="compact-toggle" type="button" role="switch" aria-label="Enable Wiggle" aria-checked="false">
+      <span class="compact-toggle-track" aria-hidden="true"><span></span></span>
+      <span class="compact-wiggle-symbol" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M1 9c3-7 5 7 8 0s5 7 8 0"/></svg></span>
+    </button>
+    <div class="compact-wiggle-pad" hidden>
+      <button type="button" class="compact-axis-pad" aria-label="Adjust Wiggle speed and intensity"
+        aria-describedby="wiggle-pad-help">
+        <svg viewBox="0 0 42 18" aria-hidden="true"><path d="M7 5 3 9l4 4M13 5l4 4-4 4M28 6l4-4 4 4M28 12l4 4 4-4"/></svg>
+      </button>
+      <span id="wiggle-pad-help" class="sr-only">Drag right for more speed, up for more intensity. Arrow keys also adjust both settings.</span>
+    </div>`;
+  const toggle = control.querySelector('.compact-toggle');
+  const menu = control.querySelector('.compact-wiggle-pad');
+  const pad = control.querySelector('.compact-axis-pad');
+  let drag = null;
+  let previousEnabled = null;
+  let previousPadLabel = '';
+  deformationControls.setWiggleEnabled(false);
+  toggle.addEventListener('click', () => {
+    deformationControls.setWiggleEnabled(!deformationControls.getWiggleSettings().enabled);
     sync();
   });
-  speed.addEventListener('input', () => {
-    deformationControls.setWiggleSettings({ speed: Number(speed.value) });
-    sync();
+  pad.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || drag) return;
+    const settings = deformationControls.getWiggleSettings();
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+      speed: settings.speed, intensity: settings.intensity,
+      scale: parent.getBoundingClientRect().width / parent.offsetWidth };
+    pad.setPointerCapture(event.pointerId);
+    pad.classList.add('is-dragging');
+    event.preventDefault();
   });
-  intensity.addEventListener('input', () => {
-    deformationControls.setWiggleSettings({ intensity: Number(intensity.value) });
-    sync();
-  });
-  for (const input of regionInputs) {
-    input.addEventListener('change', () => {
-      deformationControls.setWiggleControlEnabled(input.dataset.wiggleRegion, input.checked);
+  pad.addEventListener('pointermove', (event) => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const span = config.wiggleFullRangeDragPx * drag.scale;
+    deformationControls.setWiggleSettings({
+      speed: clamp(drag.speed + (event.clientX - drag.x) / span *
+        (config.wiggleSpeedMax - config.wiggleSpeedMin), config.wiggleSpeedMin, config.wiggleSpeedMax),
+      intensity: clamp(drag.intensity - (event.clientY - drag.y) / span *
+        (config.wiggleIntensityMax - config.wiggleIntensityMin), config.wiggleIntensityMin, config.wiggleIntensityMax),
     });
+    sync();
+  });
+  function endDrag(event) {
+    if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.id)) return;
+    const id = drag.id;
+    drag = null;
+    pad.classList.remove('is-dragging');
+    if (pad.hasPointerCapture(id)) pad.releasePointerCapture(id);
   }
-  control.querySelector('[data-wiggle-all-on]').addEventListener('click', () => {
-    deformationControls.setAllWiggleControlsEnabled(true);
-    for (const input of regionInputs) input.checked = true;
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(type, endDrag);
+  window.addEventListener('blur', endDrag);
+  pad.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    const settings = deformationControls.getWiggleSettings();
+    deformationControls.setWiggleSettings({
+      speed: settings.speed + (event.key === 'ArrowRight' ? 0.5 : event.key === 'ArrowLeft' ? -0.5 : 0),
+      intensity: settings.intensity + (event.key === 'ArrowUp' ? 0.05 : event.key === 'ArrowDown' ? -0.05 : 0),
+    });
+    event.preventDefault();
+    event.stopPropagation();
+    sync();
   });
-  control.querySelector('[data-wiggle-all-off]').addEventListener('click', () => {
-    deformationControls.setAllWiggleControlsEnabled(false);
-    for (const input of regionInputs) input.checked = false;
+  // Preserve the existing per-region utilities in Advanced Settings.
+  const regionSettings = document.createElement('details');
+  regionSettings.className = 'compact-region-settings';
+  regionSettings.innerHTML = `<summary>Wiggle regions</summary><div class="wiggle-region-list">${deformationControls.controls.map(region =>
+    `<label><input type="checkbox" data-region="${region.id}" checked> ${region.label}</label>`).join('')}</div>
+    <button type="button" data-all="true">All On</button> <button type="button" data-all="false">All Off</button>`;
+  regionSettings.addEventListener('change', event => {
+    if (event.target.dataset.region) deformationControls.setWiggleControlEnabled(event.target.dataset.region, event.target.checked);
   });
+  regionSettings.querySelectorAll('[data-all]').forEach(button => button.addEventListener('click', () => {
+    const enabled = button.dataset.all === 'true';
+    deformationControls.setAllWiggleControlsEnabled(enabled);
+    regionSettings.querySelectorAll('input').forEach(input => { input.checked = enabled; });
+  }));
+  settingsParent?.appendChild(regionSettings);
   parent.appendChild(control);
-  sync();
-
   function sync() {
     const settings = deformationControls.getWiggleSettings();
-    enabledSwitch.setAttribute('aria-checked', String(settings.enabled));
-    control.classList.toggle('is-enabled', settings.enabled);
-    if (document.activeElement !== speed) speed.value = settings.speed;
-    if (document.activeElement !== intensity) intensity.value = settings.intensity;
-    speedValue.value = settings.speed.toFixed(2);
-    intensityValue.value = settings.intensity.toFixed(2);
-    for (const input of regionInputs) {
-      const state = deformationControls.getWiggleDebugState(input.dataset.wiggleRegion);
-      if (state) input.checked = state.wiggleEnabled;
+    if (previousEnabled !== settings.enabled) {
+      previousEnabled = settings.enabled;
+      toggle.setAttribute('aria-checked', String(settings.enabled));
+      menu.hidden = !settings.enabled;
+      if (!settings.enabled) endDrag();
+    }
+    const label = `Adjust Wiggle speed and intensity. Speed ${settings.speed.toFixed(2)}, intensity ${settings.intensity.toFixed(2)}`;
+    if (label !== previousPadLabel) {
+      previousPadLabel = label;
+      pad.setAttribute('aria-label', label);
     }
   }
-
+  sync();
   return { update: sync };
 }
