@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import tuningDefaults from './deformationTuningDefaults.json';
 
 export const DEFAULT_DEFORMATION_MODE = 'hold';
 export const RELEASE_SPRING_STIFFNESS = 500;
@@ -15,6 +16,19 @@ export const ENABLE_DEFORMATION_LIMITS_LOCAL_STORAGE = true;
 export const DEPTH_DRAG_UNITS_PER_PIXEL = 0.08;
 // Visibility is deliberately broader than interaction. Distances are CSS px.
 export const HANDLE_VISIBILITY_RADIUS_MULTIPLIER = 3.0;
+// Visual dimensions are CSS pixels, independent of the per-control grab radius.
+export const HANDLE_VISUAL_CONFIG = Object.freeze({
+  radiusPx: 10,
+  maxOpacity: 0.55,
+  closeOpacity: 0.7,
+  dragOpacity: 0.72,
+  smoothing: 12,
+  minScale: 0.72,
+  revealedScale: 0.92,
+  closeScale: 1.16,
+  closeVisibilityRadiusRatio: 0.55,
+  dragScale: 1.26,
+});
 export const WEIGHT_REMAP_MODE = 'linear';
 export const WEIGHT_GAMMA = 1.0;
 export const WEIGHT_GAIN = 1.0;
@@ -173,7 +187,9 @@ function control(
   id, label, pickName, maskName, radii, bounds, maxDisplacement,
   axisScale, strength, hoverRadiusPx, dragSensitivity, wiggleProfile, directionalLimits = {},
 ) {
-  const limits = {
+  // Exact 13-control runtime snapshot, captured before changing defaults.
+  const tuned = tuningDefaults[id];
+  const limits = tuned ? { ...tuned.limits } : {
     minX: -maxDisplacement * axisScale[0],
     maxX: maxDisplacement * axisScale[0],
     minY: -maxDisplacement * axisScale[1],
@@ -193,7 +209,9 @@ function control(
     axisScale: new THREE.Vector3(...axisScale),
     // Range extents and input response are intentionally independent. These
     // values multiply the world→head-local drag delta before ellipsoid clamp.
-    dragSensitivity: new THREE.Vector3(...dragSensitivity),
+    dragSensitivity: tuned
+      ? new THREE.Vector3(tuned.dragSensitivity.x, tuned.dragSensitivity.y, tuned.dragSensitivity.z)
+      : new THREE.Vector3(...dragSensitivity),
     strength,
     handleColor: BLUE,
     // `hoverRadiusPx` remains the original clickable/grabbable distance.

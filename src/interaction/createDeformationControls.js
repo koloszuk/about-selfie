@@ -4,6 +4,7 @@ import {
   DEPTH_DRAG_UNITS_PER_PIXEL,
   DEFORMATION_CONTROL_CONFIGS,
   HANDLE_VISIBILITY_RADIUS_MULTIPLIER,
+  HANDLE_VISUAL_CONFIG,
   RELEASE_IMPULSE,
   RELEASE_MAX_DELTA_TIME,
   RELEASE_MAX_OVERSHOOT_MULTIPLIER,
@@ -47,18 +48,13 @@ import {
   SQUINTING_CONFIG,
 } from './squintingConfig.js';
 
-// Sprites are children of the normalized GLB hierarchy (roughly 0.02 world
-// scale), so this local scale yields a compact ~18–22 px marker on screen.
-const HANDLE_SCREEN_SCALE = 1.05;
-const HANDLE_MAX_OPACITY = 0.55;
-const HANDLE_CLOSE_OPACITY = 0.7;
-const HANDLE_DRAG_OPACITY = 0.72;
-const HANDLE_SMOOTHING = 12;
-const HANDLE_MIN_SCALE = 0.72;
-const HANDLE_REVEALED_SCALE = 0.92;
-const HANDLE_CLOSE_SCALE = 1.16;
-const HANDLE_CLOSE_VISIBILITY_RADIUS_RATIO = 0.55;
-const HANDLE_DRAG_SCALE = 1.26;
+const {
+  maxOpacity: HANDLE_MAX_OPACITY, closeOpacity: HANDLE_CLOSE_OPACITY,
+  dragOpacity: HANDLE_DRAG_OPACITY, smoothing: HANDLE_SMOOTHING,
+  minScale: HANDLE_MIN_SCALE, revealedScale: HANDLE_REVEALED_SCALE,
+  closeScale: HANDLE_CLOSE_SCALE, closeVisibilityRadiusRatio: HANDLE_CLOSE_VISIBILITY_RADIUS_RATIO,
+  dragScale: HANDLE_DRAG_SCALE,
+} = HANDLE_VISUAL_CONFIG;
 const LABEL_LOCAL_Y_OFFSET = 3.6;
 export const OCCLUSION_EPSILON = 0.12;
 export const SHOW_PICK_POINTS_DEFAULT = false;
@@ -85,6 +81,7 @@ export function createDeformationControls({
 }) {
   const headMesh = deformer.mesh;
   const markerTexture = createCircleTexture();
+  const markerParentScale = new THREE.Vector3();
   const controlStates = DEFORMATION_CONTROL_CONFIGS.map((config) =>
     createControlState(config, deformer, markerTexture, model),
   );
@@ -211,6 +208,12 @@ export function createDeformationControls({
     updateEligibilityStates();
     hoveredControl = draggingControl ?? findNearestControl();
     const interpolation = 1 - Math.exp(-HANDLE_SMOOTHING * delta);
+    // Sprite sizeAttenuation=false removes distance but not projection/model
+    // scale. Compensate those factors to keep a stable CSS-pixel visual radius.
+    deformer.mesh.getWorldScale(markerParentScale);
+    const markerScreenScale = HANDLE_VISUAL_CONFIG.radiusPx * 4 /
+      (0.72 * Math.max(canvas.clientHeight, 1) * camera.projectionMatrix.elements[5] *
+        Math.max(Math.abs(markerParentScale.y), 1e-8));
     for (const state of controlStates) {
       if (!state.active) {
         state.material.opacity = 0;
@@ -255,7 +258,7 @@ export function createDeformationControls({
         targetScale,
         interpolation,
       );
-      state.marker.scale.setScalar(HANDLE_SCREEN_SCALE * state.handleScale);
+      state.marker.scale.setScalar(markerScreenScale * state.handleScale);
       state.labelSprite.visible = labelsVisible && (
         isDragging || forceMarkersVisible || state.visibilityProgress > 0 || (isOccluded && showOccludedMarkers)
       );
@@ -1630,7 +1633,7 @@ function createControlState(config, deformer, markerTexture, model) {
   );
 
   marker.name = `${config.id}DeformationHandle`;
-  marker.scale.setScalar(HANDLE_SCREEN_SCALE * state.handleScale);
+  marker.scale.setScalar(state.handleScale);
   marker.renderOrder = 1000;
   labelSprite.name = `${config.id}DeformationLabel`;
   deformer.mesh.add(marker, labelSprite);
