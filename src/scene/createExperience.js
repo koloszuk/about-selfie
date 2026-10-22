@@ -6,6 +6,7 @@ import { IS_EMBED_MODE, getPublicAssetUrl } from '../runtime/embedMode.js';
 import { PRESENTATION_CONFIG } from './presentationConfig.js';
 import { createCameraFraming } from './createCameraFraming.js';
 import { createVideoBackground } from './createVideoBackground.js';
+import { createBackgroundGrain } from './createBackgroundGrain.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
@@ -29,6 +30,7 @@ export function createExperience(container) {
   container.style.backgroundRepeat = 'no-repeat';
   const videoBackground = createVideoBackground(container,
     PRESENTATION_CONFIG.backgroundVideoAsset, PRESENTATION_CONFIG.backgroundAsset);
+  const backgroundGrain = createBackgroundGrain(container, PRESENTATION_CONFIG.backgroundGrain);
   if (IS_EMBED_MODE) {
     scene.background = null;
     container.style.backgroundColor = 'transparent';
@@ -121,6 +123,7 @@ export function createExperience(container) {
 
   function dispose() {
     videoBackground.dispose();
+    backgroundGrain.dispose();
     resizeObserver.disconnect();
     window.removeEventListener('resize', resize);
     controls.dispose();
