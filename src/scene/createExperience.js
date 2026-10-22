@@ -5,6 +5,7 @@ import { createPostProcessing } from './createPostProcessing.js';
 import { IS_EMBED_MODE, getPublicAssetUrl } from '../runtime/embedMode.js';
 import { PRESENTATION_CONFIG } from './presentationConfig.js';
 import { createCameraFraming } from './createCameraFraming.js';
+import { createVideoBackground } from './createVideoBackground.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
@@ -26,6 +27,8 @@ export function createExperience(container) {
   container.style.backgroundSize = 'cover';
   container.style.backgroundPosition = 'center';
   container.style.backgroundRepeat = 'no-repeat';
+  const videoBackground = createVideoBackground(container,
+    PRESENTATION_CONFIG.backgroundVideoAsset, PRESENTATION_CONFIG.backgroundAsset);
   if (IS_EMBED_MODE) {
     scene.background = null;
     container.style.backgroundColor = 'transparent';
@@ -55,6 +58,8 @@ export function createExperience(container) {
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute('aria-label', 'Interactive 3D head');
   renderer.domElement.style.touchAction = 'none';
+  renderer.domElement.style.position = 'relative';
+  renderer.domElement.style.zIndex = '1';
   renderer.domElement.addEventListener('pointerdown', () => renderer.domElement.focus(), {
     passive: true,
   });
@@ -115,6 +120,7 @@ export function createExperience(container) {
   window.addEventListener('resize', resize);
 
   function dispose() {
+    videoBackground.dispose();
     resizeObserver.disconnect();
     window.removeEventListener('resize', resize);
     controls.dispose();

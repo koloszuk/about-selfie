@@ -3,6 +3,7 @@ export const PRESENTATION_CONFIG = Object.freeze({
   // Version is the first 12 characters of the image's SHA-256. Update when
   // replacing the PNG so cached images refresh without disabling caching.
   backgroundAsset: 'BG/BG_placeholder_v01.png?v=7d2dfcb04b14',
+  backgroundVideoAsset: 'BG/AboutSelfie_AnimatedBG_v01.mp4?v=51589c0be8a7',
   autoOrbit: Object.freeze({
     initialHorizontalDeg: 35, // Positive means the face points screen-right.
     initialPitchDeg: -2.5, // Camera elevation: 4° below the previous +1.5°,
