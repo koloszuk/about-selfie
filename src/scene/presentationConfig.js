@@ -8,8 +8,8 @@ export const PRESENTATION_CONFIG = Object.freeze({
     initialHorizontalDeg: 35, // Positive means the face points screen-right.
     initialPitchDeg: -2.5, // Camera elevation: 4° below the previous +1.5°,
     // giving a subtle chin lift without changing the head/idle transforms.
-    leftLimitDeg: -45,
-    rightLimitDeg: 45,
+    leftLimitDeg: -35,
+    rightLimitDeg: 35,
     maxSpeedDegPerSecond: 2,
     limitEasing: 'cosine', // Zero velocity and smooth reversal at both ends.
     pauseTransitionSeconds: 0.35,
