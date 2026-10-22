@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export const DEFAULT_DEFORMATION_MODE = 'release';
+export const DEFAULT_DEFORMATION_MODE = 'hold';
 export const RELEASE_SPRING_STIFFNESS = 500;
 export const RELEASE_SPRING_DAMPING = 10;
 export const RELEASE_SPRING_MASS = 1;
@@ -50,7 +50,7 @@ export const WIGGLE_MAX_RANGE_FRACTION = 0.45;
 // asymmetric limits, and deformation composition as pointer dragging. Keep the
 // mapping here so changing a key never requires touching interaction code.
 export const KEYBOARD_MODE_CONFIG = Object.freeze({
-  enabledByDefault: true,
+  enabledByDefault: false,
   keyToPickName: Object.freeze({
     D: 'PICK_Nose',
     A: 'PICK_CheekRight',
