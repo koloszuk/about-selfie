@@ -20,7 +20,7 @@ export function createAdvancedSettings(parent) {
   panel.setAttribute('aria-label', 'Advanced Settings');
   panel.innerHTML = `
     <details>
-      <summary>Advanced Settings</summary>
+      <summary aria-label="Advanced Settings" title="Advanced Settings"></summary>
       <div class="advanced-settings-content">
         ${SECTIONS.map(([id, label]) => `
           <details class="advanced-section" data-advanced-section="${id}">
@@ -31,6 +31,9 @@ export function createAdvancedSettings(parent) {
     </details>
   `;
   const sections = [...panel.querySelectorAll('[data-advanced-section]')];
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel']) {
+    panel.addEventListener(type, event => event.stopPropagation());
+  }
   for (const section of sections) {
     section.addEventListener('toggle', () => {
       if (!section.open) return;
