@@ -22,6 +22,9 @@ export const FILL_LIGHT_INTENSITY = 1.2;
 export const RIM_LIGHT_INTENSITY = 1.4;
 
 export function createExperience(container) {
+  const { width: ratioWidth, height: ratioHeight } = PRESENTATION_CONFIG.viewer;
+  container.style.setProperty('--selfie-aspect-ratio', `${ratioWidth} / ${ratioHeight}`);
+  container.style.setProperty('--selfie-aspect-number', ratioWidth / ratioHeight);
   const scene = new THREE.Scene();
   const backgroundColor = new THREE.Color(BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT]);
   container.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.background.placeholderAsset)}")`;
@@ -93,6 +96,8 @@ export function createExperience(container) {
   function resize() {
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
+    container.style.setProperty('--selfie-viewer-width', `${width}px`);
+    container.style.setProperty('--selfie-viewer-height', `${height}px`);
 
     framing.resize(width, height);
     const devicePixelRatio = window.devicePixelRatio;

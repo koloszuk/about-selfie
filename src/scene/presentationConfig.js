@@ -1,5 +1,6 @@
 // Presentation only: camera framing does not change the model's scale.
 export const PRESENTATION_CONFIG = Object.freeze({
+  viewer: Object.freeze({ width: 772, height: 475 }), // Responsive proportion, not pixel dimensions.
   // Replace this pair together; placeholder is the video's exact first frame.
   // Content-hash versions refresh only changed assets, not caching globally.
   background: Object.freeze({
