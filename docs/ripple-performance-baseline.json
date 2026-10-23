@@ -1,0 +1,21 @@
+{
+  "baselineCommit": "5c4851d7ee03edf9df8112343b49d56e4dec9a2e",
+  "note": "Captured before optimization. The open viewer read strength 64; the user's explicit requested baseline/default is 65. All other exposed values match the captured viewer.",
+  "backgroundRipple": {
+    "enabled": true,
+    "movementThreshold": 8,
+    "movementSensitivity": 1,
+    "movementSmoothing": 0.14,
+    "strengthPx": 65,
+    "propagationSpeedPx": 90,
+    "dissipation": 1.1,
+    "density": 8,
+    "nearHeadStrengthPx": 45,
+    "referenceHeight": 475,
+    "maskResolution": 256,
+    "silhouetteUpdateHz": 20,
+    "simulationHz": 120,
+    "maxSimulationSteps": 8,
+    "sourceWidthPx": 20
+  }
+}
