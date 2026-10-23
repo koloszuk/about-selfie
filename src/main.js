@@ -38,6 +38,7 @@ import { IS_EMBED_MODE } from './runtime/embedMode.js';
 import { createCompactUi } from './ui/createCompactUi.js';
 import { createAutoOrbit } from './scene/createAutoOrbit.js';
 import { PRESENTATION_CONFIG } from './scene/presentationConfig.js';
+import { createBackgroundRippleControl } from './ui/createBackgroundRippleControl.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -77,6 +78,7 @@ let idleDebugControl;
 let eyeAlignController;
 let eyeAlignControl;
 let autoOrbit;
+let backgroundRippleControl;
 
 async function initialize() {
   status.hidden = false;
@@ -87,6 +89,9 @@ async function initialize() {
     const head = await createHead(undefined, { renderer: experience.renderer });
     const modelInfo = head.userData.inspection;
     const advancedSettings = createAdvancedSettings(container);
+    backgroundRippleControl = createBackgroundRippleControl(
+      advancedSettings.getSection('backgroundRipple'), experience.backgroundRipple,
+    );
     const compactUi = createCompactUi(container, { reserveTopSpace: !IS_EMBED_MODE });
     if (!IS_EMBED_MODE) {
       createBackgroundToggle(container, experience.setBackgroundMode, {
@@ -318,6 +323,8 @@ function animate() {
 
   // Add per-frame deformation updates here before rendering.
   const renderStart = performanceAnalytics ? performance.now() : 0;
+  experience.backgroundRipple.update(delta);
+  backgroundRippleControl?.update(delta);
   experience.postProcessing.render(delta);
   if (performanceAnalytics) performanceAnalytics.recordRender(performance.now() - renderStart);
   performanceAnalytics?.endFrame(delta);
