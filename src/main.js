@@ -39,6 +39,7 @@ import { createCompactUi } from './ui/createCompactUi.js';
 import { createAutoOrbit } from './scene/createAutoOrbit.js';
 import { PRESENTATION_CONFIG } from './scene/presentationConfig.js';
 import { createBackgroundRippleControl } from './ui/createBackgroundRippleControl.js';
+import { createFrameProfiler } from './scene/createFrameProfiler.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -53,6 +54,8 @@ try {
 }
 const pointer = experience ? createPointerTracker(experience.renderer.domElement) : null;
 const clock = new THREE.Clock();
+const frameProfiler = experience ? createFrameProfiler(experience.renderer, experience.backgroundRipple,
+  () => idleController?.registerInteraction()) : null;
 let eyeFollower;
 let deformationControls;
 let headDeformer;
@@ -274,10 +277,12 @@ async function initialize() {
 }
 
 function animate() {
+  frameProfiler?.beginFrame();
   const delta = Math.min(clock.getDelta(), 0.1);
   performanceAnalytics?.beginFrame();
   experience.controls.update();
-  autoOrbit?.update(delta);
+  if (!frameProfiler?.controlsCamera) autoOrbit?.update(delta);
+  frameProfiler?.updateCamera(experience.camera, experience.controls);
   experience.environment.update();
   idleController?.update(delta);
   headFollower?.update(delta);
@@ -323,11 +328,14 @@ function animate() {
 
   // Add per-frame deformation updates here before rendering.
   const renderStart = performanceAnalytics ? performance.now() : 0;
+  frameProfiler?.beginRipple();
   experience.backgroundRipple.update(delta);
+  frameProfiler?.endRipple();
   backgroundRippleControl?.update(delta);
   experience.postProcessing.render(delta);
   if (performanceAnalytics) performanceAnalytics.recordRender(performance.now() - renderStart);
   performanceAnalytics?.endFrame(delta);
+  frameProfiler?.endFrame();
 }
 
 if (experience) {
