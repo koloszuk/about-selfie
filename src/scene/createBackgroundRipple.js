@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { getPublicAssetUrl } from '../runtime/embedMode.js';
+import { MAX_RIPPLE_WAVES, createProjectedHeadMotion, createMovementEmitter,
+  getMovementDrive, getWaveEnvelope } from './backgroundRippleMotion.js';
 
 const vertexShader = `
   varying vec2 vUv;
@@ -45,29 +47,62 @@ const jumpShader = `
     gl_FragColor = best;
   }
 `;
+const packShader = `
+  varying vec2 vUv;
+  uniform sampler2D field;
+  uniform sampler2D mask;
+  void main() {
+    gl_FragColor = vec4(texture2D(field, vUv).xyz, step(0.12, texture2D(mask, vUv).a));
+  }
+`;
 const backgroundShader = `
   varying vec2 vUv;
   uniform sampler2D backgroundMap;
-  uniform sampler2D field;
-  uniform sampler2D mask;
+  uniform sampler2D waveFields[${MAX_RIPPLE_WAVES}];
+  uniform vec4 waveData[${MAX_RIPPLE_WAVES}];
+  uniform sampler2D nearFieldA;
+  uniform sampler2D nearFieldB;
+  uniform float nearBlend;
+  uniform float nearStrength;
+  uniform float nearWidth;
+  uniform float waveCount;
+  uniform float displacementLimit;
   uniform sampler2D grainMap;
   uniform vec2 viewerSize;
   uniform vec2 fieldSize;
   uniform vec2 coverScale;
-  uniform float front;
-  uniform float softness;
-  uniform float strength;
   uniform float grainOpacity;
-  uniform float rippleActive;
   // Keep jump-flood propagation point-sampled, but reconstruct its frozen
   // nearest-contour coordinates smoothly for the full-resolution display.
-  vec4 smoothField(vec2 uv) {
+  vec4 smoothField(sampler2D field, vec2 uv) {
     vec2 pixel = uv * fieldSize - 0.5;
     vec2 base = (floor(pixel) + 0.5) / fieldSize;
     vec2 f = fract(pixel);
     vec2 texel = 1.0 / fieldSize;
     return mix(mix(texture2D(field, base), texture2D(field, base + vec2(texel.x, 0.0)), f.x),
       mix(texture2D(field, base + vec2(0.0, texel.y)), texture2D(field, base + texel), f.x), f.y);
+  }
+  vec2 waveOffset(sampler2D field, vec4 data, vec2 uv) {
+    if (data.w < 0.5 || data.y < 0.001) return vec2(0.0);
+    vec4 nearest = smoothField(field, uv);
+    if (nearest.z < 0.5 || nearest.a > 0.5) return vec2(0.0);
+    vec2 delta = (uv - nearest.xy) * viewerSize;
+    float distanceToContour = length(delta);
+    vec2 normal = delta / max(distanceToContour, 0.001);
+    float organic = 1.0 + 0.07 * sin(nearest.x * 31.0) * sin(nearest.y * 27.0);
+    float x = (distanceToContour - data.x) / max(data.z * organic, 1.0);
+    return normal * (-x * exp(-0.5 * x * x)) * data.y;
+  }
+  vec2 nearOffset(sampler2D field, vec2 uv) {
+    if (nearStrength < 0.001) return vec2(0.0);
+    vec4 nearest = smoothField(field, uv);
+    if (nearest.z < 0.5 || nearest.a > 0.5) return vec2(0.0);
+    vec2 delta = (uv - nearest.xy) * viewerSize;
+    float distanceToContour = length(delta);
+    vec2 normal = delta / max(distanceToContour, 0.001);
+    float x = distanceToContour / max(nearWidth, 1.0);
+    float organic = 0.8 + 0.2 * sin(nearest.x * 31.0) * sin(nearest.y * 27.0);
+    return normal * exp(-0.5 * x * x) * nearStrength * organic;
   }
   vec3 softLight(vec3 base, vec3 noise) {
     vec3 d = mix(((16.0 * base - 12.0) * base + 4.0) * base,
@@ -76,19 +111,17 @@ const backgroundShader = `
       base + (2.0 * noise - 1.0) * (d - base), step(vec3(0.5), noise));
   }
   void main() {
-    vec2 displaced = vUv;
-    vec4 nearest = smoothField(vUv);
-    if (rippleActive > 0.5 && nearest.z > 0.5 && texture2D(mask, vUv).a < 0.12) {
-      vec2 delta = (vUv - nearest.xy) * viewerSize;
-      float distanceToContour = length(delta);
-      vec2 normal = delta / max(distanceToContour, 0.001);
-      float organic = 1.0 + 0.07 * sin(nearest.x * 31.0) * sin(nearest.y * 27.0);
-      float x = (distanceToContour - front) / max(softness * organic, 1.0);
-      float wave = -x * exp(-0.5 * x * x);
-      vec2 edge = min(vUv, 1.0 - vUv) * viewerSize;
-      float edgeFade = smoothstep(0.0, 24.0, min(edge.x, edge.y));
-      displaced += normal * wave * strength * edgeFade / viewerSize;
-    }
+    vec2 waves = vec2(0.0);
+    ${Array.from({ length: MAX_RIPPLE_WAVES }, (_, i) =>
+    `waves += waveOffset(waveFields[${i}], waveData[${i}], vUv);`).join('\n    ')}
+    waves /= max(1.0, sqrt(waveCount * 0.6));
+    vec2 local = mix(nearOffset(nearFieldA, vUv), nearOffset(nearFieldB, vUv), nearBlend);
+    vec2 offset = waves + local;
+    // Soft saturation bounds overlapping disturbances without hard clipping.
+    offset /= sqrt(1.0 + dot(offset, offset) / max(displacementLimit * displacementLimit, 1.0));
+    vec2 edge = min(vUv, 1.0 - vUv) * viewerSize;
+    float edgeFade = smoothstep(0.0, 24.0, min(edge.x, edge.y));
+    vec2 displaced = vUv + offset * edgeFade / viewerSize;
     vec2 uv = clamp((displaced - 0.5) * coverScale + 0.5, 0.0, 1.0);
     vec3 color = texture2D(backgroundMap, uv).rgb;
     vec3 noise = texture2D(grainMap, vUv).rgb;
@@ -99,8 +132,8 @@ const backgroundShader = `
   }
 `;
 
-/** Frozen rendered-alpha silhouette + GPU jump flooding. No CPU pixel readback,
- * no new canvas/context, and no modifications to imported head materials. */
+/** One shared live silhouette field plus a bounded pool of frozen wave fields.
+ * GPU jump flooding, no readback, no additional canvas or animation loop. */
 export function createBackgroundRipple({ renderer, scene, camera, container,
   videoBackground, backgroundGrain, grainConfig, postProcessing, defaults, placeholderAsset }) {
   const settings = { ...defaults };
@@ -110,8 +143,14 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
   const savedColor = new THREE.Color();
   const savedViewport = new THREE.Vector4();
   const savedScissor = new THREE.Vector4();
-  let model = null, maskTarget = null, targets = null;
-  let age = 0, elapsed = 0, active = false, pending = false;
+  let model = null, motion = null, maskTarget = null, targets = null, nearTargets = null;
+  let nearIndex = 0, nearReady = false, nearAge = 0, captureElapsed = Infinity;
+  let pending = false, smoothedSpeed = 0, rawSpeed = 0, drive = 0, nearGain = 0;
+  let activeCount = 0;
+  const emitter = createMovementEmitter();
+  const waves = Array.from({ length: MAX_RIPPLE_WAVES }, () => ({
+    active: false, age: 0, gain: 0, target: null,
+  }));
   let captureCount = 0, grainRevision = -1, placeholderReady = false, lastCaptureMs = 0;
   let available = renderer.capabilities.isWebGL2 && renderer.extensions.has('EXT_color_buffer_float');
   let reason = available ? 'GPU ready' : 'GPU fallback: half-float rendering unavailable';
@@ -131,13 +170,16 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
   grainTexture.generateMipmaps = false;
   grainTexture.minFilter = THREE.LinearFilter;
   const uniforms = {
-    backgroundMap: { value: placeholderTexture }, field: { value: neutral }, mask: { value: neutral },
+    backgroundMap: { value: placeholderTexture },
+    waveFields: { value: Array(MAX_RIPPLE_WAVES).fill(neutral) },
+    waveData: { value: Array.from({ length: MAX_RIPPLE_WAVES }, () => new THREE.Vector4()) },
+    nearFieldA: { value: neutral }, nearFieldB: { value: neutral }, nearBlend: { value: 1 },
+    nearStrength: { value: 0 }, nearWidth: { value: settings.nearHeadWidthPx },
+    waveCount: { value: 0 }, displacementLimit: { value: 40 },
     grainMap: { value: grainTexture }, viewerSize: { value: new THREE.Vector2(1, 1) },
     fieldSize: { value: new THREE.Vector2(1, 1) },
-    coverScale: { value: new THREE.Vector2(1, 1) }, front: { value: 0 },
-    softness: { value: settings.softnessPx }, strength: { value: 0 },
+    coverScale: { value: new THREE.Vector2(1, 1) },
     grainOpacity: { value: grainConfig.enabled && backgroundGrain.canvas ? grainConfig.opacity : 0 },
-    rippleActive: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader: backgroundShader,
     uniforms, depthTest: false, depthWrite: false, toneMapped: false });
@@ -153,6 +195,9 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
   const jumpMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: jumpShader,
     uniforms: { field: { value: null }, resolution: { value: new THREE.Vector2() }, jump: { value: 1 } },
     depthTest: false, depthWrite: false, toneMapped: false });
+  const packMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: packShader,
+    uniforms: { field: { value: null }, mask: { value: null } },
+    depthTest: false, depthWrite: false, toneMapped: false });
   const passScene = new THREE.Scene();
   const passCamera = new THREE.Camera();
   const passQuad = new THREE.Mesh(geometry, seedMaterial);
@@ -162,11 +207,15 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
   function releaseTargets() {
     maskTarget?.dispose();
     targets?.forEach(target => target.dispose());
-    maskTarget = null; targets = null;
+    nearTargets?.forEach(target => target.dispose());
+    for (const wave of waves) { wave.target?.dispose(); wave.target = null; }
+    maskTarget = null; targets = null; nearTargets = null;
+    uniforms.waveFields.value.fill(neutral);
+    uniforms.nearFieldA.value = neutral; uniforms.nearFieldB.value = neutral;
   }
   function resize(width, height) {
     uniforms.viewerSize.value.set(width, height);
-    active = false; elapsed = 0; pending = false;
+    resetMovement();
     releaseTargets();
     if (!available) return;
     const scale = defaults.maskResolution / Math.max(width, height);
@@ -174,15 +223,20 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
     const h = Math.max(16, Math.round(height * scale));
     uniforms.fieldSize.value.set(w, h);
     maskTarget = new THREE.WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false });
-    targets = [0, 1].map(() => new THREE.WebGLRenderTarget(w, h, {
+    const makeField = () => new THREE.WebGLRenderTarget(w, h, {
       type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
       depthBuffer: false, stencilBuffer: false,
-    }));
+    });
+    targets = [makeField(), makeField()];
+    nearTargets = [makeField(), makeField()];
+    for (let i = 0; i < waves.length; i += 1) {
+      waves[i].target = makeField();
+      uniforms.waveFields.value[i] = waves[i].target.texture;
+    }
     seedMaterial.uniforms.mask.value = maskTarget.texture;
     seedMaterial.uniforms.texel.value.set(1 / w, 1 / h);
     jumpMaterial.uniforms.resolution.value.set(w, h);
-    uniforms.mask.value = maskTarget.texture;
-    uniforms.field.value = targets[0].texture;
+    packMaterial.uniforms.mask.value = maskTarget.texture;
     const previous = renderer.getRenderTarget();
     renderer.setRenderTarget(targets[0]);
     const gl = renderer.getContext();
@@ -191,7 +245,7 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
     if (!available) { reason = 'GPU fallback: distance-field target unsupported'; releaseTargets(); }
   }
 
-  function capture() {
+  function capture(waveSlot = null, gain = 0) {
     if (!model || !available || !maskTarget) return false;
     const started = performance.now();
     const previousTarget = renderer.getRenderTarget();
@@ -228,7 +282,21 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
         renderer.render(passScene, passCamera);
         source = 1 - source;
       }
-      uniforms.field.value = targets[source].texture;
+      passQuad.material = packMaterial;
+      packMaterial.uniforms.field.value = targets[source].texture;
+      if (!nearReady || captureElapsed >= 1 / defaults.silhouetteUpdateHz) {
+        nearIndex = 1 - nearIndex;
+        renderer.setRenderTarget(nearTargets[nearIndex]);
+        renderer.render(passScene, passCamera);
+        uniforms.nearFieldA.value = nearReady ? nearTargets[1 - nearIndex].texture : nearTargets[nearIndex].texture;
+        uniforms.nearFieldB.value = nearTargets[nearIndex].texture;
+        nearReady = true; nearAge = 0; captureElapsed = 0;
+      }
+      if (waveSlot) {
+        renderer.setRenderTarget(waveSlot.target);
+        renderer.render(passScene, passCamera);
+        waveSlot.age = 0; waveSlot.gain = gain; waveSlot.active = true;
+      }
       captureCount += 1;
       return true;
     } catch (error) {
@@ -249,14 +317,22 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
     }
   }
 
-  function resetSchedule() { elapsed = 0; active = false; pending = false; }
-  document.addEventListener('visibilitychange', resetSchedule);
-  reducedMotion.addEventListener('change', resetSchedule);
+  function resetMovement() {
+    motion?.reset(); emitter.reset();
+    pending = false; smoothedSpeed = 0; rawSpeed = 0; drive = 0; nearGain = 0;
+    nearReady = false; nearAge = 0; captureElapsed = Infinity; activeCount = 0;
+    for (let i = 0; i < waves.length; i += 1) {
+      waves[i].active = false; uniforms.waveData.value[i].set(0, 0, 0, 0);
+    }
+    uniforms.nearStrength.value = 0;
+  }
+  document.addEventListener('visibilitychange', resetMovement);
+  reducedMotion.addEventListener('change', resetMovement);
   function update(delta) {
     const canRender = available && settings.enabled && !reducedMotion.matches && !postProcessing.enabled;
     const videoReady = videoBackground.ready;
     background.visible = canRender && (videoReady || placeholderReady);
-    if (!background.visible || document.hidden) { active = false; elapsed = 0; return; }
+    if (!background.visible || document.hidden) { resetMovement(); return; }
     reason = 'GPU ready';
     uniforms.backgroundMap.value = videoReady ? videoTexture : placeholderTexture;
     const image = videoReady ? videoBackground.video : placeholderTexture.image;
@@ -268,32 +344,59 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
       grainTexture.needsUpdate = true;
     }
     const dt = Math.min(Math.max(delta, 0), 0.1);
-    elapsed += dt;
-    if (active) age += dt;
-    if (pending || elapsed >= settings.intervalSeconds) {
-      pending = false; elapsed = 0;
-      active = capture(); age = 0;
+    rawSpeed = motion?.sample(dt, viewAspect) ?? 0;
+    smoothedSpeed = THREE.MathUtils.damp(smoothedSpeed, rawSpeed,
+      1 / Math.max(settings.movementSmoothing, 0.001), dt);
+    drive = getMovementDrive(smoothedSpeed, settings);
+    nearGain = THREE.MathUtils.damp(nearGain, drive,
+      drive > nearGain ? 12 : settings.nearHeadFadeSpeed, dt);
+    captureElapsed += dt; nearAge += dt;
+    activeCount = 0;
+    let freeSlot = null;
+    for (const wave of waves) {
+      if (wave.active) {
+        wave.age += dt;
+        if (wave.age >= settings.durationSeconds) wave.active = false;
+        else activeCount += 1;
+      }
+      if (!wave.active && !freeSlot) freeSlot = wave;
     }
-    const t = Math.min(age / settings.durationSeconds, 1);
-    if (t >= 1) active = false;
+    const limit = THREE.MathUtils.clamp(Math.round(settings.maxWaves), 1, MAX_RIPPLE_WAVES);
+    const hasFreeSlot = Boolean(freeSlot && activeCount < limit);
+    const emit = emitter.update(dt, rawSpeed, smoothedSpeed, drive, settings, hasFreeSlot);
+    const manual = pending; pending = false;
+    const wantsWave = hasFreeSlot && (manual || emit);
+    const captureInterval = 1 / defaults.silhouetteUpdateHz;
+    // Every new wave gets the exact current silhouette, not the previous live
+    // field. Between emissions the live near-field is capped at 15 Hz.
+    const wantsNearCapture = nearGain > 0.002 && rawSpeed > 0.1 && captureElapsed >= captureInterval;
+    // Full pools skip, never replace a visible wave or queue missed waves.
+    if (wantsWave || wantsNearCapture) capture(wantsWave ? freeSlot : null, manual ? 1 : drive);
     const scale = uniforms.viewerSize.value.y / settings.referenceHeight;
-    const propagation = 1 - (1 - t) ** settings.easing;
-    const inset = Math.max(0, settings.startInsetPx) * scale;
-    // A negative contour distance is an inward offset, not a scaled mask.
-    // Preserve the existing final expansion distance and ease-out curve.
-    uniforms.front.value = THREE.MathUtils.lerp(-inset, settings.expansionPx * scale, propagation);
-    uniforms.softness.value = settings.softnessPx * scale;
-    const easeInSeconds = Math.min(Math.max(0, settings.intensityEaseInSeconds), settings.durationSeconds);
-    const entrance = easeInSeconds > 0
-      ? THREE.MathUtils.smootherstep(age, 0, easeInSeconds) : 1;
-    // The Gaussian has an infinite tail: occlude that tail while the front is
-    // inside the frozen head, then reveal it smoothly across one wave width.
-    const emergence = inset > 0
-      ? THREE.MathUtils.smoothstep(uniforms.front.value, 0, Math.max(uniforms.softness.value, 1)) : 1;
-    // Multiplication retains the original quadratic fade and its timeline;
-    // the entrance joins it with zero extra slope, without a hard peak.
-    uniforms.strength.value = settings.strengthPx * scale * entrance * emergence * (1 - t) ** 2;
-    uniforms.rippleActive.value = active ? 1 : 0;
+    activeCount = 0;
+    let blendWeight = 0;
+    for (let i = 0; i < waves.length; i += 1) {
+      const wave = waves[i];
+      const data = uniforms.waveData.value[i];
+      if (!wave.active) { data.w = 0; continue; }
+      activeCount += 1;
+      const t = THREE.MathUtils.clamp(wave.age / settings.durationSeconds, 0, 1);
+      const front = THREE.MathUtils.lerp(-settings.startInsetPx, settings.expansionPx,
+        1 - (1 - t) ** settings.easing) * scale;
+      const emergence = settings.startInsetPx > 0
+        ? THREE.MathUtils.smoothstep(front, 0, Math.max(settings.softnessPx * scale, 1)) : 1;
+      const envelope = wave.gain * getWaveEnvelope(wave.age, settings) * emergence;
+      blendWeight += envelope;
+      data.set(front, settings.strengthPx * scale * envelope,
+        settings.softnessPx * scale, 1);
+    }
+    // Normalize using continuous envelope weights, not an integer wave count:
+    // births/deaths therefore cannot abruptly attenuate the existing waves.
+    uniforms.waveCount.value = blendWeight;
+    uniforms.nearBlend.value = THREE.MathUtils.smoothstep(nearAge, 0, captureInterval);
+    uniforms.nearStrength.value = nearReady ? nearGain * settings.nearHeadStrengthPx * scale : 0;
+    uniforms.nearWidth.value = settings.nearHeadWidthPx * scale;
+    uniforms.displacementLimit.value = Math.max(1, settings.nearHeadStrengthPx + settings.strengthPx * 1.5) * scale;
     if (!available) background.visible = false;
   }
   return {
@@ -301,22 +404,25 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
     setModel(root) {
       model = root; headMeshes.clear();
       root.traverse(object => { if (object.isMesh) headMeshes.add(object); });
-      resetSchedule();
+      const rigidHead = root.getObjectByName('head_LowPoly') ?? root.getObjectByName('HEAD_ANIMATION_ROOT') ?? root;
+      motion = createProjectedHeadMotion(rigidHead, camera, settings.referenceHeight);
+      resetMovement();
     },
     trigger() { if (settings.enabled) pending = true; },
-    get supported() { return available; },
+    get supported() { return available && !reducedMotion.matches && !postProcessing.enabled; },
     get status() {
       if (!settings.enabled) return 'Disabled — normal HTML background';
       if (reducedMotion.matches) return 'Reduced motion — static background';
       if (postProcessing.enabled) return 'FXAA mode — normal background fallback';
-      return `${reason} · ${active ? `playing ${age.toFixed(1)}s` : 'waiting'} · captures ${captureCount}` +
+      return `${reason} · speed ${smoothedSpeed.toFixed(1)} reference px/s (raw ${rawSpeed.toFixed(1)})` +
+        ` · drive ${(drive * 100).toFixed(1)}% · ${activeCount}/${Math.round(settings.maxWaves)} waves · captures ${captureCount}` +
         ` · mask ${maskTarget?.width ?? 0}×${maskTarget?.height ?? 0} · last capture CPU ${lastCaptureMs.toFixed(1)}ms`;
     },
     dispose() {
-      document.removeEventListener('visibilitychange', resetSchedule);
-      reducedMotion.removeEventListener('change', resetSchedule);
+      document.removeEventListener('visibilitychange', resetMovement);
+      reducedMotion.removeEventListener('change', resetMovement);
       scene.remove(background); releaseTargets(); geometry.dispose(); material.dispose();
-      seedMaterial.dispose(); jumpMaterial.dispose(); videoTexture.dispose(); placeholderTexture.dispose();
+      seedMaterial.dispose(); jumpMaterial.dispose(); packMaterial.dispose(); videoTexture.dispose(); placeholderTexture.dispose();
       if (grainTexture !== neutral) grainTexture.dispose();
       neutral.dispose();
     },

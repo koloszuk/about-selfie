@@ -15,16 +15,27 @@ export const PRESENTATION_CONFIG = Object.freeze({
   }),
   backgroundRipple: Object.freeze({
     enabled: true,
-    intervalSeconds: 5,
-    durationSeconds: 4,
-    startInsetPx: 25,
-    intensityEaseInSeconds: 0.6,
-    strengthPx: 24,
+    movementThreshold: 8, // Reference CSS px/s; calibrated above the 2°/s auto-orbit.
+    movementSensitivity: 1,
+    intensityResponse: 0.8,
+    frequencyResponse: 1,
+    movementSmoothing: 0.14, // Exponential time constant in seconds.
+    nearHeadStrengthPx: 12,
+    nearHeadWidthPx: 32,
+    nearHeadFadeSpeed: 5, // Exponential release rate, per second.
+    waveFrequency: 1.5, // Speed-dependent, also budgeted by pool size / wave lifetime.
+    waveSpacingPx: 14,
+    maxWaves: 5, // Fixed preallocated capacity is 6; no replacement/popping when full.
+    durationSeconds: 3.5,
+    startInsetPx: 8,
+    intensityEaseInSeconds: 0.2,
+    strengthPx: 20,
     expansionPx: 180,
-    softnessPx: 24,
-    easing: 3,
+    softnessPx: 28,
+    easing: 2.2,
     referenceHeight: 475, // Pixel settings scale proportionally with the viewer.
-    maskResolution: 256, // Long edge; captured only once per ripple.
+    maskResolution: 256,
+    silhouetteUpdateHz: 15, // Shared live near-field; waves retain their own frozen copy.
   }),
   autoOrbit: Object.freeze({
     initialHorizontalDeg: 35, // Positive means the face points screen-right.
