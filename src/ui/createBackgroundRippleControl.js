@@ -1,6 +1,8 @@
 const SLIDERS = [
   ['intervalSeconds', 'Ripple interval (seconds)', 1, 20, 0.5],
   ['durationSeconds', 'Ripple duration (seconds)', 0.5, 4, 0.1],
+  ['startInsetPx', 'Ripple Start Inset', 0, 100, 1],
+  ['intensityEaseInSeconds', 'Intensity Ease-In (seconds)', 0, 4, 0.05],
   ['strengthPx', 'Distortion strength', 0, 60, 1],
   ['expansionPx', 'Maximum expansion distance', 20, 400, 5],
   ['softnessPx', 'Wavefront width / softness', 6, 80, 1],
