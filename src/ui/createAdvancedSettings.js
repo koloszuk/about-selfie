@@ -11,6 +11,7 @@ const SECTIONS = [
   ['idle', 'Idle Animation'],
   ['blink', 'Blink Schedule'],
   ['wiggle', 'Wiggle Settings'],
+  ['backgroundRipple', 'Background Ripple'],
   ['performance', 'Performance Analytics'],
 ];
 
