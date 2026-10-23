@@ -277,9 +277,22 @@ export function createBackgroundRipple({ renderer, scene, camera, container,
     const t = Math.min(age / settings.durationSeconds, 1);
     if (t >= 1) active = false;
     const scale = uniforms.viewerSize.value.y / settings.referenceHeight;
-    uniforms.front.value = settings.expansionPx * scale * (1 - (1 - t) ** settings.easing);
-    uniforms.strength.value = settings.strengthPx * scale * (1 - t) ** 2;
+    const propagation = 1 - (1 - t) ** settings.easing;
+    const inset = Math.max(0, settings.startInsetPx) * scale;
+    // A negative contour distance is an inward offset, not a scaled mask.
+    // Preserve the existing final expansion distance and ease-out curve.
+    uniforms.front.value = THREE.MathUtils.lerp(-inset, settings.expansionPx * scale, propagation);
     uniforms.softness.value = settings.softnessPx * scale;
+    const easeInSeconds = Math.min(Math.max(0, settings.intensityEaseInSeconds), settings.durationSeconds);
+    const entrance = easeInSeconds > 0
+      ? THREE.MathUtils.smootherstep(age, 0, easeInSeconds) : 1;
+    // The Gaussian has an infinite tail: occlude that tail while the front is
+    // inside the frozen head, then reveal it smoothly across one wave width.
+    const emergence = inset > 0
+      ? THREE.MathUtils.smoothstep(uniforms.front.value, 0, Math.max(uniforms.softness.value, 1)) : 1;
+    // Multiplication retains the original quadratic fade and its timeline;
+    // the entrance joins it with zero extra slope, without a hard peak.
+    uniforms.strength.value = settings.strengthPx * scale * entrance * emergence * (1 - t) ** 2;
     uniforms.rippleActive.value = active ? 1 : 0;
     if (!available) background.visible = false;
   }

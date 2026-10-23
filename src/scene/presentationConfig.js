@@ -17,6 +17,8 @@ export const PRESENTATION_CONFIG = Object.freeze({
     enabled: true,
     intervalSeconds: 5,
     durationSeconds: 4,
+    startInsetPx: 25,
+    intensityEaseInSeconds: 0.6,
     strengthPx: 24,
     expansionPx: 180,
     softnessPx: 24,
