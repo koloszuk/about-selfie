@@ -17,8 +17,13 @@ export function createCompactUi(container, { reserveTopSpace = false } = {}) {
     const height = container.clientHeight;
     const compact = width < config.compactBelowWidth || matchMedia('(pointer: coarse)').matches;
     const ratio = Math.min(width / config.referenceWidth, height / config.referenceHeight);
-    const scale = Math.min(config.maxScale,
+    const preferredScale = Math.min(config.maxScale,
       Math.max(compact ? config.touchMinScale : config.minScale, ratio * config.scaleMultiplier));
+    const requiredHeight = compact ? 200 : 172;
+    // Keep the existing scale except when a short proportional viewer cannot
+    // contain the controls. Expanded menus retain their own scroll handling.
+    const scale = Math.min(preferredScale,
+      Math.max(0.35, (height - config.edgeInset * 2) / requiredHeight));
     const panelWidth = Math.min(284, (width - config.edgeInset * 2) / scale);
     const rootWidth = compact ? panelWidth : 158;
     const pillCenterX = compact ? rootWidth - 46.5 : 46.5;
@@ -30,7 +35,6 @@ export function createCompactUi(container, { reserveTopSpace = false } = {}) {
     const maximumRight = compact || !menuLeft ? rootWidth : 93;
     left = Math.max(minimumLeft, Math.min(left, width - config.edgeInset - maximumRight * scale));
     const minimumTop = reserveTopSpace ? config.compactTopInset : config.edgeInset;
-    const requiredHeight = compact ? 200 : 172;
     const maximumTop = Math.max(minimumTop, height - config.edgeInset - requiredHeight * scale);
     const top = Math.max(minimumTop, Math.min(height * config.firstControlCenterY - pillCenterY * scale, maximumTop));
     root.style.setProperty('--selfie-ui-scale', scale);
