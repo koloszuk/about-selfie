@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { PRESENTATION_CONFIG } from '../src/scene/presentationConfig.js';
-import { createProjectedHeadMotion, createMovementEmitter, getMovementDrive,
-  getWaveEnvelope, MAX_RIPPLE_WAVES } from '../src/scene/backgroundRippleMotion.js';
+import { createProjectedHeadMotion, createWavefieldStepper, getMovementDrive,
+  getWaveStepSeconds } from '../src/scene/backgroundRippleMotion.js';
 
 const settings = PRESENTATION_CONFIG.backgroundRipple;
-assert.equal('intervalSeconds' in settings, false);
-assert(settings.maxWaves <= MAX_RIPPLE_WAVES);
+assert(settings.strengthPx >= 80 && settings.nearHeadStrengthPx >= 40, 'Intentionally strong visual defaults');
+for (const key of ['intervalSeconds', 'maxWaves', 'waveFrequency', 'durationSeconds', 'intensityEaseInSeconds']) {
+  assert.equal(key in settings, false, `Retired event setting: ${key}`);
+}
 assert.equal(getMovementDrive(0, settings), 0);
 assert.equal(getMovementDrive(3, settings), 0);
 assert.equal(getMovementDrive(5.7, settings), 0, 'Measured slow automatic orbit remains calm');
@@ -58,45 +61,47 @@ function orbitSpeed(fps) {
 const speeds = [30, 60, 120].map(orbitSpeed);
 assert(Math.max(...speeds) - Math.min(...speeds) < 0.01, 'Frame-rate-independent speed');
 
-function emissions(fps) {
-  const emitter = createMovementEmitter();
-  let count = 0;
+function continuousSteps(fps) {
+  const stepper = createWavefieldStepper(settings.maxSimulationSteps);
+  let count = 0, simulatedTime = 0, smoothedSpeed = 0;
+  const integrate = dt => { count += 1; simulatedTime += dt; };
+  const step = getWaveStepSeconds(256, 158, 772/475, 475, settings.propagationSpeedPx, settings.simulationHz);
+  for (let i = 0; i < fps * 10; i += 1) {
+    smoothedSpeed = THREE.MathUtils.damp(smoothedSpeed, 80, 1/settings.movementSmoothing, 1/fps);
+    const drive = getMovementDrive(smoothedSpeed, settings);
+    if (i > fps) assert(drive > 0.99, 'Constant movement never enters an emission gap or per-event fade');
+    const n = stepper.advance(1/fps, step, integrate);
+    assert(n > 0 && n <= settings.maxSimulationSteps);
+  }
+  assert(Math.abs(simulatedTime - 10) < 1e-8);
+  // Stop source amplitude smoothly; continue integration for the existing wake.
+  let previous = getMovementDrive(smoothedSpeed, settings);
   for (let i = 0; i < fps * 2; i += 1) {
-    if (emitter.update(1 / fps, 100, 100, 1, settings, true)) count += 1;
+    smoothedSpeed = THREE.MathUtils.damp(smoothedSpeed, 0, 1/settings.movementSmoothing, 1/fps);
+    const drive = getMovementDrive(smoothedSpeed, settings);
+    assert(drive <= previous + 1e-9); previous = drive;
+    assert(stepper.advance(1/fps, step, integrate) > 0);
   }
-  for (let i = 0; i < fps * 5; i += 1) {
-    assert.equal(emitter.update(1 / fps, 0, 30, 0.8, settings, true), false,
-      'No emissions after stopping, even while smoothed speed decays');
-  }
-  emitter.reset();
-  for (let i = 0; i < fps * 2; i += 1) {
-    assert.equal(emitter.update(1 / fps, 100, 100, 1, settings, false), false, 'Full pool never queues waves');
-  }
-  emitter.update(1 / fps, 0, 0, 0, settings, false);
-  assert.equal(emitter.update(1 / fps, 0, 0, 0, settings, true), false);
+  assert.equal(previous, 0);
+  stepper.reset();
+  assert.equal(stepper.advance(0, step, integrate), 0, 'No catch-up after hidden-tab/resize reset');
+  assert(stepper.advance(10, step, integrate) <= settings.maxSimulationSteps, 'Bounded work on stalls');
   return count;
 }
-const counts = [30, 60, 120].map(emissions);
-assert(Math.max(...counts) - Math.min(...counts) <= 1, 'Frame-rate-independent emissions');
-const sustained = createMovementEmitter();
-const births = new Float64Array(settings.maxWaves).fill(-100);
-let previousBirth = -1, sustainedCount = 0;
-for (let i = 1; i <= 120 * 12; i += 1) {
-  const time = i / 120;
-  const slot = births.findIndex(birth => time - birth >= settings.durationSeconds - 1e-8);
-  if (sustained.update(1 / 120, 100, 100, 1, settings, slot >= 0)) {
-    births[slot] = time;
-    if (previousBirth >= 0) assert(time - previousBirth < 0.75, 'No repeating burst/pause clusters');
-    previousBirth = time; sustainedCount += 1;
-  }
+const counts = [30, 60, 120].map(continuousSteps);
+assert.equal(Math.max(...counts), Math.min(...counts));
+for (const aspect of [0.5, 772/475, 3]) {
+  const width = aspect < 1 ? Math.round(256*aspect) : 256;
+  const height = aspect < 1 ? 256 : Math.round(256/aspect);
+  const dt = getWaveStepSeconds(width, height, aspect, 475, 200, 120);
+  const dx = 475*aspect/width, dy = 475/height;
+  assert((200*dt/dx)**2 + (200*dt/dy)**2 + 90*dt*dt/4 < 1,
+    'Stable 2D CFL bound including source pressure stiffness at maximum live speed');
 }
-assert(sustainedCount >= 15, 'Continuous bounded emissions under sustained movement');
-assert.equal(getWaveEnvelope(0, settings), 0);
-assert.equal(getWaveEnvelope(settings.durationSeconds, settings), 0);
-for (let age = 0; age < settings.durationSeconds; age += 0.001) {
-  const v = getWaveEnvelope(age, settings);
-  assert(v >= 0 && v <= 1 && Number.isFinite(v));
-}
-console.log('PASS: rigid projected motion, camera/idle composition, facial/eye exclusion, reset,');
-console.log('frame-rate-independent emission, calm/stop/full-pool behavior and smooth wave envelopes.');
-console.log({ syntheticOrbitSpeeds: speeds, emissionCounts: counts });
+const rendererSource = readFileSync(new URL('../src/scene/createBackgroundRipple.js', import.meta.url), 'utf8');
+assert(!/spawnWave|waveSlot|createMovementEmitter|MAX_RIPPLE_WAVES/.test(rendererSource));
+assert(rendererSource.includes('laplacian') && rendererSource.includes('simulateStep'));
+console.log('PASS: rigid projected motion, camera/idle composition, facial/eye exclusion,');
+console.log('10-second continuous forcing, smooth stop with continuing feedback, CFL stability,');
+console.log('30/60/120 FPS integration and bounded reset/stall behavior.');
+console.log({ syntheticOrbitSpeeds: speeds, feedbackStepCounts: counts });
