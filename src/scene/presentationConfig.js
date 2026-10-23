@@ -18,7 +18,7 @@ export const PRESENTATION_CONFIG = Object.freeze({
     movementThreshold: 8, // Reference CSS px/s; calibrated above the 2°/s auto-orbit.
     movementSensitivity: 1,
     movementSmoothing: 0.14, // Exponential time constant in seconds.
-    strengthPx: 85, // Deliberately strong first-pass feedback-field displacement.
+    strengthPx: 65, // Tuned continuous-field displacement; see the saved performance baseline.
     propagationSpeedPx: 90, // Reference pixels per second, not an emission frequency.
     dissipation: 1.1, // Damped wave equation; higher values dissipate faster.
     density: 8, // Spatial frequency of the continuous, non-periodic source pressure.

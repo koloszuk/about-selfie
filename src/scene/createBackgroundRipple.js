@@ -51,18 +51,35 @@ const packShader = `
   varying vec2 vUv;
   uniform sampler2D field;
   uniform sampler2D mask;
-  void main() { gl_FragColor = vec4(texture2D(field, vUv).xyz, step(0.12, texture2D(mask, vUv).a)); }
+  uniform vec2 referenceSize;
+  uniform float sourceWidth;
+  void main() {
+    vec4 nearest = texture2D(field, vUv);
+    float inside = step(0.12, texture2D(mask, vUv).a);
+    #ifdef REFERENCE_PACK
+      gl_FragColor = vec4(nearest.xyz, inside);
+    #else
+    float d = length((vUv-nearest.xy) * referenceSize);
+    float x = d / sourceWidth;
+    float band = nearest.z > 0.5 && inside < 0.5
+      ? exp(-0.5*x*x) * smoothstep(0.0, sourceWidth*0.25, d) : 0.0;
+    // The blue channel used to repeat the seed-valid flag. Cache the pressure
+    // band there instead: no additional target, pass, upload, or readback.
+    gl_FragColor = vec4(nearest.xy, band, inside);
+    #endif
+  }
 `;
 // Shared source band: the near-head gain and the simulation use exactly the
 // same smoothly interpolated contour, rather than joining two separate effects.
 const sourceShader = `
   uniform sampler2D sourceA;
   uniform sampler2D sourceB;
-  uniform vec2 fieldSize;
   uniform vec2 referenceSize;
   uniform float sourceBlend;
   uniform float sourceReady;
   uniform float sourceWidth;
+  #ifdef REFERENCE_SOURCE_FILTER
+  uniform vec2 fieldSize;
   vec4 smoothContour(sampler2D field, vec2 uv) {
     vec2 p = uv * fieldSize - 0.5;
     vec2 base = (floor(p) + 0.5) / fieldSize;
@@ -70,16 +87,29 @@ const sourceShader = `
     return mix(mix(texture2D(field, base), texture2D(field, base + vec2(texel.x, 0.0)), f.x),
       mix(texture2D(field, base + vec2(0.0, texel.y)), texture2D(field, base + texel), f.x), f.y);
   }
+  #endif
   float contourBand(sampler2D field, vec2 uv) {
+    #ifdef REFERENCE_SOURCE_FILTER
     vec4 nearest = smoothContour(field, uv);
-    if (nearest.z < 0.5 || nearest.a > 0.5) return 0.0;
+    #else
+    // Same four-texel bilinear interpolation, performed by the texture unit.
+    vec4 nearest = texture2D(field, uv);
+    #endif
+    if (nearest.x < 0.0 || nearest.a > 0.5) return 0.0;
     float d = length((uv - nearest.xy) * referenceSize);
     float x = d / sourceWidth;
     return exp(-0.5 * x * x) * smoothstep(0.0, sourceWidth * 0.25, d);
   }
   float currentSource(vec2 uv) {
     if (sourceReady < 0.5) return 0.0;
+    #ifdef CACHED_SOURCE_BAND
+      // Simulation fragments are exactly the source-grid texel centers. This
+      // is the same spatial band, evaluated once per capture rather than once
+      // per fixed step; temporal interpolation and pressure noise stay intact.
+      return mix(texture2D(sourceA, uv).b, texture2D(sourceB, uv).b, sourceBlend);
+    #else
     return mix(contourBand(sourceA, uv), contourBand(sourceB, uv), sourceBlend);
+    #endif
   }
 `;
 const simulationShader = `
@@ -181,12 +211,18 @@ const backgroundShader = `
 export function createBackgroundRipple({ renderer, scene, camera,
   videoBackground, backgroundGrain, grainConfig, postProcessing, defaults, placeholderAsset }) {
   const settings = { ...defaults };
+  // Developer-only original algorithm for controlled A/B measurements.
+  const referenceMode = new URLSearchParams(location.search).get('rippleReference') === '1';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const headMeshes = new Set(), hiddenObjects = [];
+  const maskMaterials = new Map(), maskArrays = new WeakMap(), maskBindings = [];
+  const compareMask = new URLSearchParams(location.search).get('rippleMaskCompare') === '1';
+  let maskComparison = '', maskCompared = false;
   const stepper = createWavefieldStepper(defaults.maxSimulationSteps);
   const savedColor = new THREE.Color(), savedViewport = new THREE.Vector4(), savedScissor = new THREE.Vector4();
   const saved = { target: null, background: null, autoClear: true, alpha: 0, scissorTest: false };
   let model = null, motion = null, maskTarget = null, scratch = null, sourceTargets = null, waveTargets = null;
+  let profiler = null;
   let sourceIndex = 0, waveIndex = 0, sourceAge = 0, captureElapsed = Infinity;
   let smoothedSpeed = 0, rawSpeed = 0, drive = 0, phase = 0, tailRemaining = 0;
   let sourceReady = false, hasField = false, needsClear = true, suspended = true;
@@ -208,7 +244,8 @@ export function createBackgroundRipple({ renderer, scene, camera,
   grainTexture.generateMipmaps = false; grainTexture.minFilter = THREE.LinearFilter;
   const sourceUniforms = {
     sourceA: { value: black }, sourceB: { value: black }, sourceBlend: { value: 1 }, sourceReady: { value: 0 },
-    fieldSize: { value: new THREE.Vector2(1, 1) }, referenceSize: { value: new THREE.Vector2(772, 475) },
+    referenceSize: { value: new THREE.Vector2(772, 475) },
+    fieldSize: { value: new THREE.Vector2(1, 1) },
     sourceWidth: { value: defaults.sourceWidthPx },
   };
   const uniforms = {
@@ -225,6 +262,7 @@ export function createBackgroundRipple({ renderer, scene, camera,
     emission: uniforms.emission, density: { value: settings.density }, phase: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader: backgroundShader,
+    defines: referenceMode ? { REFERENCE_SOURCE_FILTER: 1 } : {},
     uniforms, depthTest: false, depthWrite: false, toneMapped: false });
   const background = new THREE.Mesh(geometry, material);
   background.name = 'BackgroundRippleDisplay'; background.frustumCulled = false;
@@ -235,11 +273,14 @@ export function createBackgroundRipple({ renderer, scene, camera,
   const jumpMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: jumpShader,
     uniforms: { field: { value: null }, resolution: { value: new THREE.Vector2() }, jump: { value: 1 } },
     depthTest: false, depthWrite: false, toneMapped: false });
-  const packMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: packShader,
-    uniforms: { field: { value: null }, mask: { value: null } },
-    depthTest: false, depthWrite: false, toneMapped: false });
   const simulationMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: simulationShader,
-    uniforms: simulationUniforms, depthTest: false, depthWrite: false, toneMapped: false });
+    uniforms: simulationUniforms, defines: referenceMode ? { REFERENCE_SOURCE_FILTER: 1 } : { CACHED_SOURCE_BAND: 1 },
+    depthTest: false, depthWrite: false, toneMapped: false });
+  const packMaterial = new THREE.ShaderMaterial({ vertexShader, fragmentShader: packShader,
+    defines: referenceMode ? { REFERENCE_PACK: 1 } : {},
+    uniforms: { field: { value: null }, mask: { value: null },
+      referenceSize: sourceUniforms.referenceSize, sourceWidth: sourceUniforms.sourceWidth },
+    depthTest: false, depthWrite: false, toneMapped: false });
   const passScene = new THREE.Scene(), passCamera = new THREE.Camera();
   const passQuad = new THREE.Mesh(geometry, seedMaterial);
   passQuad.frustumCulled = false; passScene.add(passQuad);
@@ -280,36 +321,69 @@ export function createBackgroundRipple({ renderer, scene, camera,
     uniforms.texel.value.set(1 / w, 1 / h);
     uniforms.cellSize.value.set(sourceUniforms.referenceSize.value.x / w, settings.referenceHeight / h);
     maskTarget = new THREE.WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false });
-    const makeField = (filter = THREE.NearestFilter) => new THREE.WebGLRenderTarget(w, h, {
-      type: THREE.HalfFloatType, minFilter: filter, magFilter: filter, depthBuffer: false, stencilBuffer: false,
+    const makeField = (filter = THREE.NearestFilter, format = THREE.RGBAFormat) => new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType, format, minFilter: filter, magFilter: filter, depthBuffer: false, stencilBuffer: false,
     });
-    scratch = [makeField(), makeField()]; sourceTargets = [makeField(), makeField()];
-    waveTargets = [makeField(THREE.LinearFilter), makeField(THREE.LinearFilter)];
+    scratch = [makeField(), makeField()];
+    sourceTargets = [makeField(referenceMode ? THREE.NearestFilter : THREE.LinearFilter),
+      makeField(referenceMode ? THREE.NearestFilter : THREE.LinearFilter)];
+    // State uses only height + velocity. RG16F preserves their exact precision
+    // while halving feedback texture storage and sampled bandwidth.
+    const stateFormat = referenceMode ? THREE.RGBAFormat : THREE.RGFormat;
+    waveTargets = [makeField(THREE.LinearFilter, stateFormat), makeField(THREE.LinearFilter, stateFormat)];
     seedMaterial.uniforms.mask.value = maskTarget.texture;
     seedMaterial.uniforms.texel.value.copy(uniforms.texel.value);
     jumpMaterial.uniforms.resolution.value.set(w, h); packMaterial.uniforms.mask.value = maskTarget.texture;
     const previous = renderer.getRenderTarget(); renderer.setRenderTarget(scratch[0]);
     const gl = renderer.getContext();
     available = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    if (available && !referenceMode) {
+      renderer.setRenderTarget(waveTargets[0]);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        for (const target of waveTargets) target.dispose();
+        waveTargets = [makeField(THREE.LinearFilter), makeField(THREE.LinearFilter)];
+      }
+    }
     renderer.setRenderTarget(previous);
     if (!available) { reason = 'GPU fallback: feedback target unsupported'; releaseTargets(); }
   }
   function captureSource() {
     if (!model || !available || !maskTarget) return false;
+    profiler?.beginPhase('source');
     const started = performance.now(); saveState(); hiddenObjects.length = 0;
-    scene.traverse(object => {
-      if (object.visible && (object.isMesh || object.isSprite || object.isLine || object.isPoints)
-        && !headMeshes.has(object)) { hiddenObjects.push(object); object.visible = false; }
-    });
+    scene.traverse(hideNonHeadObject);
     try {
       renderer.setClearColor(0x000000, 0); scene.background = null;
+      // Optional one-time validation, excluded from warmed performance samples.
+      // Ordinary rendering never reads GPU pixels back to the CPU.
+      let originalAlpha = null;
+      if (compareMask && !maskCompared) {
+        renderer.setRenderTarget(maskTarget); renderer.render(scene, camera);
+        originalAlpha = new Uint8Array(maskTarget.width * maskTarget.height * 4);
+        renderer.readRenderTargetPixels(maskTarget, 0, 0, maskTarget.width, maskTarget.height, originalAlpha);
+      }
+      if (!referenceMode) for (const binding of maskBindings) {
+        binding.original = binding.mesh.material;
+        binding.mesh.material = getMaskMaterial(binding.original);
+      }
       renderer.setRenderTarget(maskTarget); renderer.render(scene, camera);
+      if (originalAlpha) {
+        const pixels = new Uint8Array(originalAlpha.length);
+        renderer.readRenderTargetPixels(maskTarget, 0, 0, maskTarget.width, maskTarget.height, pixels);
+        let different = 0, differentCoverage = 0;
+        for (let i = 3; i < pixels.length; i += 4) {
+          if (pixels[i] !== originalAlpha[i]) different += 1;
+          if ((pixels[i] >= 31) !== (originalAlpha[i] >= 31)) differentCoverage += 1;
+        }
+        maskCompared = true;
+        maskComparison = ` · mask validation: ${different} alpha / ${differentCoverage} coverage differences`;
+      }
       passQuad.material = seedMaterial; renderer.setRenderTarget(scratch[0]); renderer.render(passScene, passCamera);
       let source = 0; passQuad.material = jumpMaterial;
       for (let jump = 2 ** (Math.ceil(Math.log2(Math.max(maskTarget.width, maskTarget.height))) - 1);
         jump >= 1; jump /= 2) {
         jumpMaterial.uniforms.field.value = scratch[source].texture; jumpMaterial.uniforms.jump.value = jump;
-        renderer.setRenderTarget(scratch[1 - source]); renderer.render(passScene, passCamera); source = 1 - source;
+        renderer.setRenderTarget(scratch[1-source]); renderer.render(passScene, passCamera); source = 1-source;
       }
       sourceIndex = 1 - sourceIndex; passQuad.material = packMaterial;
       packMaterial.uniforms.field.value = scratch[source].texture;
@@ -322,9 +396,80 @@ export function createBackgroundRipple({ renderer, scene, camera,
       available = false; reason = 'GPU fallback: source capture failed';
       console.warn('[background-ripple] Normal background retained.', error); return false;
     } finally {
+      for (const binding of maskBindings) if (binding.original) binding.mesh.material = binding.original;
       for (const object of hiddenObjects) object.visible = true;
       restoreState(); lastCaptureMs = performance.now() - started;
+      profiler?.endPhase('source');
     }
+  }
+  function hideNonHeadObject(object) {
+    if (object.visible && (object.isMesh || object.isSprite || object.isLine || object.isPoints)
+      && !headMeshes.has(object)) { hiddenObjects.push(object); object.visible = false; }
+  }
+  function getMaskMaterial(source) {
+    if (Array.isArray(source)) {
+      let result = maskArrays.get(source);
+      if (!result) { result = source.map(getMaskMaterial); maskArrays.set(source, result); }
+      else for (let i = 0; i < source.length; i += 1) result[i] = getMaskMaterial(source[i]);
+      return result;
+    }
+    if (source.isShaderMaterial) return source;
+    let entry = maskMaterials.get(source);
+    if (!entry || entry.version !== source.version) {
+      entry?.material.dispose();
+      // Unlit alpha-only material, with the exact original alpha shader and
+      // rasterization settings. Exotic/displaced materials retain their full
+      // original shader as a conservative compatibility fallback.
+      const mask = source.displacementMap
+        ? source.clone() : new THREE.MeshBasicMaterial({ color: 0x000000 });
+      if (mask.isMeshBasicMaterial) {
+        for (const key of ['map', 'alphaMap', 'opacity', 'transparent', 'alphaTest', 'alphaHash',
+          'alphaToCoverage', 'premultipliedAlpha', 'side', 'forceSinglePass', 'depthWrite', 'depthTest',
+          'depthFunc', 'colorWrite', 'blending', 'blendSrc', 'blendDst', 'blendEquation', 'blendSrcAlpha',
+          'blendDstAlpha', 'blendEquationAlpha', 'polygonOffset', 'polygonOffsetFactor', 'polygonOffsetUnits',
+          'visible', 'vertexColors', 'clippingPlanes', 'clipIntersection', 'clipShadows', 'wireframe',
+          'wireframeLinewidth', 'precision', 'stencilWrite', 'stencilFunc', 'stencilRef', 'stencilFuncMask',
+          'stencilFail', 'stencilZFail', 'stencilZPass', 'stencilWriteMask']) {
+          if (key in source) mask[key] = source[key];
+        }
+      }
+      mask.toneMapped = false; mask.fog = false;
+      // Retain the original vertex, morph, skinning, cutout and custom hair
+      // alpha shader. Only RGB is unused by this silhouette target. Writing a
+      // constant RGB lets the shader compiler eliminate lighting/reflection
+      // calculations that cannot contribute to the captured alpha.
+      mask.onBeforeCompile = (shader, activeRenderer) => {
+        source.onBeforeCompile.call(source, shader, activeRenderer);
+        const end = shader.fragmentShader.lastIndexOf('}');
+        shader.fragmentShader = shader.fragmentShader.slice(0, end) +
+          '\n gl_FragColor.rgb = vec3(0.0);\n' + shader.fragmentShader.slice(end);
+      };
+      mask.customProgramCacheKey = () => `${source.customProgramCacheKey()}|ripple-alpha-only-v1`;
+      entry = { material: mask, version: source.version }; maskMaterials.set(source, entry);
+    }
+    return entry.material;
+  }
+  function warmPrograms() {
+    // Compile while the model is initializing, rather than on its first drag.
+    // compileAsync submits synchronously; restoring materials immediately is
+    // safe because Three retains its own set of programs awaiting completion.
+    try {
+      if (!referenceMode) {
+        for (const binding of maskBindings) {
+          binding.original = binding.mesh.material; binding.mesh.material = getMaskMaterial(binding.original);
+        }
+        renderer.compileAsync(model, camera, scene).catch(onWarmupError);
+      }
+      for (const pass of [seedMaterial, jumpMaterial, packMaterial, simulationMaterial]) {
+        passQuad.material = pass; renderer.compileAsync(passScene, passCamera).catch(onWarmupError);
+      }
+    } catch (error) { onWarmupError(error);
+    } finally {
+      for (const binding of maskBindings) if (binding.original) binding.mesh.material = binding.original;
+    }
+  }
+  function onWarmupError(error) {
+    console.warn('[background-ripple] Shader warmup deferred; lazy compilation remains available.', error);
   }
   function simulateStep(dt) {
     phase += dt * settings.propagationSpeedPx * settings.density / settings.referenceHeight * 0.65;
@@ -334,6 +479,7 @@ export function createBackgroundRipple({ renderer, scene, camera,
     waveIndex = 1-waveIndex;
   }
   function advanceField(delta, aspect) {
+    profiler?.beginPhase('simulation');
     saveState();
     try {
       if (needsClear) {
@@ -352,7 +498,7 @@ export function createBackgroundRipple({ renderer, scene, camera,
     } catch (error) {
       available = false; reason = 'GPU fallback: simulation failed';
       console.warn('[background-ripple] Normal background retained.', error);
-    } finally { restoreState(); }
+    } finally { restoreState(); profiler?.endPhase('simulation'); }
   }
   document.addEventListener('visibilitychange', resetMovement);
   reducedMotion.addEventListener('change', resetMovement);
@@ -395,22 +541,37 @@ export function createBackgroundRipple({ renderer, scene, camera,
   }
   return {
     settings, update, resize,
+    setProfiler(value) { profiler = value; },
     setModel(root) {
-      model = root; headMeshes.clear(); root.traverse(object => { if (object.isMesh) headMeshes.add(object); });
+      for (const entry of maskMaterials.values()) entry.material.dispose();
+      maskMaterials.clear(); maskBindings.length = 0; maskCompared = false; maskComparison = '';
+      model = root; headMeshes.clear(); root.traverse(object => {
+        if (object.isMesh) { headMeshes.add(object); maskBindings.push({ mesh: object, original: null }); }
+      });
+      warmPrograms();
       const rigidHead = root.getObjectByName('head_LowPoly') ?? root.getObjectByName('HEAD_ANIMATION_ROOT') ?? root;
       motion = createProjectedHeadMotion(rigidHead, camera, settings.referenceHeight); resetMovement();
     },
     get supported() { return available && !reducedMotion.matches && !postProcessing.enabled; },
+    get diagnostics() {
+      const stateBytes = waveTargets?.[0].texture.format === THREE.RGFormat ? 4 : 8;
+      return { field: `${maskTarget?.width ?? 0}x${maskTarget?.height ?? 0}`,
+        stateFormat: stateBytes === 4 ? 'RG16F' : 'RGBA16F', renderTargets: maskTarget ? 7 : 0,
+        estimatedTextureBytes: maskTarget ? maskTarget.width*maskTarget.height*(4+4*8+2*stateBytes) : 0,
+        cachedMaskMaterials: maskMaterials.size, simulationHz: defaults.simulationHz,
+        silhouetteUpdateHz: defaults.silhouetteUpdateHz, referenceMode };
+    },
     get status() {
       if (!settings.enabled) return 'Disabled — normal HTML background';
       if (reducedMotion.matches) return 'Reduced motion — static background';
       if (postProcessing.enabled) return 'FXAA mode — normal background fallback';
-      return `${reason} · speed ${smoothedSpeed.toFixed(1)} reference px/s · source ${(drive*100).toFixed(1)}%` +
+      return `${reason}${referenceMode ? ' (reference)' : ''} · speed ${smoothedSpeed.toFixed(1)} reference px/s · source ${(drive*100).toFixed(1)}%` +
         ` · ${stepsThisFrame} feedback steps/frame · captures ${captureCount} · field ${maskTarget?.width ?? 0}×${maskTarget?.height ?? 0}` +
-        ` · last capture CPU ${lastCaptureMs.toFixed(1)}ms`;
+        ` · last capture CPU ${lastCaptureMs.toFixed(1)}ms${maskComparison}`;
     },
     dispose() {
       document.removeEventListener('visibilitychange', resetMovement); reducedMotion.removeEventListener('change', resetMovement);
+      for (const entry of maskMaterials.values()) entry.material.dispose(); maskMaterials.clear();
       scene.remove(background); releaseTargets(); geometry.dispose(); material.dispose(); seedMaterial.dispose();
       jumpMaterial.dispose(); packMaterial.dispose(); simulationMaterial.dispose(); videoTexture.dispose(); placeholderTexture.dispose();
       if (grainTexture !== neutralGrain) grainTexture.dispose(); black.dispose(); neutralGrain.dispose();
