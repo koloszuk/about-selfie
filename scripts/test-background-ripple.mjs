@@ -6,7 +6,9 @@ import { createProjectedHeadMotion, createWavefieldStepper, getMovementDrive,
   getWaveStepSeconds } from '../src/scene/backgroundRippleMotion.js';
 
 const settings = PRESENTATION_CONFIG.backgroundRipple;
-assert(settings.strengthPx >= 80 && settings.nearHeadStrengthPx >= 40, 'Intentionally strong visual defaults');
+assert.equal(settings.strengthPx, 65, 'User-tuned distortion strength is the source default');
+const baseline = JSON.parse(readFileSync(new URL('../docs/ripple-performance-baseline.json', import.meta.url), 'utf8'));
+assert.deepEqual(settings, baseline.backgroundRipple, 'No other ripple tuning changes during optimization');
 for (const key of ['intervalSeconds', 'maxWaves', 'waveFrequency', 'durationSeconds', 'intensityEaseInSeconds']) {
   assert.equal(key in settings, false, `Retired event setting: ${key}`);
 }
@@ -99,9 +101,19 @@ for (const aspect of [0.5, 772/475, 3]) {
     'Stable 2D CFL bound including source pressure stiffness at maximum live speed');
 }
 const rendererSource = readFileSync(new URL('../src/scene/createBackgroundRipple.js', import.meta.url), 'utf8');
+assert(rendererSource.includes('THREE.RGFormat'), 'Compact state retains two half-float channels');
+assert(rendererSource.includes('REFERENCE_PACK') && rendererSource.includes('CACHED_SOURCE_BAND'));
+let maximumBandError = 0;
+for (let distance = 0; distance < 200; distance += 0.125) {
+  const x = distance/settings.sourceWidthPx;
+  const band = Math.exp(-0.5*x*x)*THREE.MathUtils.smoothstep(distance, 0, settings.sourceWidthPx*0.25);
+  const cached = THREE.DataUtils.fromHalfFloat(THREE.DataUtils.toHalfFloat(band));
+  maximumBandError = Math.max(maximumBandError, Math.abs(cached-band));
+}
+assert(maximumBandError < 0.0005, 'Cached pressure band retains half-float precision');
 assert(!/spawnWave|waveSlot|createMovementEmitter|MAX_RIPPLE_WAVES/.test(rendererSource));
 assert(rendererSource.includes('laplacian') && rendererSource.includes('simulateStep'));
 console.log('PASS: rigid projected motion, camera/idle composition, facial/eye exclusion,');
 console.log('10-second continuous forcing, smooth stop with continuing feedback, CFL stability,');
 console.log('30/60/120 FPS integration and bounded reset/stall behavior.');
-console.log({ syntheticOrbitSpeeds: speeds, feedbackStepCounts: counts });
+console.log({ syntheticOrbitSpeeds: speeds, feedbackStepCounts: counts, maximumBandError });
