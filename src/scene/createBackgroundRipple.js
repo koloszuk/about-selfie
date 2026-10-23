@@ -91,7 +91,8 @@ const backgroundShader = `
     vec2 normal = delta / max(distanceToContour, 0.001);
     float organic = 1.0 + 0.07 * sin(nearest.x * 31.0) * sin(nearest.y * 27.0);
     float x = (distanceToContour - data.x) / max(data.z * organic, 1.0);
-    return normal * (-x * exp(-0.5 * x * x)) * data.y;
+    float contourFade = smoothstep(0.0, max(data.z * 0.15, 1.0), distanceToContour);
+    return normal * (-x * exp(-0.5 * x * x)) * data.y * contourFade;
   }
   vec2 nearOffset(sampler2D field, vec2 uv) {
     if (nearStrength < 0.001) return vec2(0.0);
@@ -102,7 +103,10 @@ const backgroundShader = `
     vec2 normal = delta / max(distanceToContour, 0.001);
     float x = distanceToContour / max(nearWidth, 1.0);
     float organic = 0.8 + 0.2 * sin(nearest.x * 31.0) * sin(nearest.y * 27.0);
-    return normal * exp(-0.5 * x * x) * nearStrength * organic;
+    // Zero displacement exactly at the mask boundary prevents a hard seam
+    // when the moving head exposes part of a previous live-field silhouette.
+    float contourFade = smoothstep(0.0, max(nearWidth * 0.18, 1.0), distanceToContour);
+    return normal * exp(-0.5 * x * x) * nearStrength * organic * contourFade;
   }
   vec3 softLight(vec3 base, vec3 noise) {
     vec3 d = mix(((16.0 * base - 12.0) * base + 4.0) * base,
