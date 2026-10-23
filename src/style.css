@@ -25,6 +25,18 @@ body,
   overscroll-behavior: none;
 }
 
+body {
+  display: grid;
+  place-items: center;
+}
+
+#app {
+  position: relative;
+  width: min(100%, calc(100dvh * var(--selfie-aspect-number, 1.6252631579)));
+  height: auto;
+  aspect-ratio: var(--selfie-aspect-ratio, 772 / 475);
+}
+
 canvas {
   display: block;
   width: 100%;
@@ -38,7 +50,7 @@ canvas {
 }
 
 #status {
-  position: fixed;
+  position: absolute;
   inset: 50% auto auto 50%;
   z-index: 2;
   padding: 0.55rem 0.75rem;
@@ -132,6 +144,7 @@ canvas {
 }
 
 .background-mode-toggle {
+  position: absolute;
   top: 0.75rem;
   right: 0.75rem;
 }
@@ -357,7 +370,7 @@ canvas {
 }
 
 .advanced-settings {
-  position: fixed;
+  position: absolute;
   top: 0.75rem;
   left: 0.75rem;
   z-index: 5;
@@ -380,8 +393,8 @@ canvas {
 .advanced-settings-content {
   display: grid;
   gap: 0.35rem;
-  width: min(24rem, calc(100vw - 1.5rem));
-  max-height: calc(100dvh - 4.75rem);
+  width: min(24rem, calc(var(--selfie-viewer-width, 100vw) - 1.5rem));
+  max-height: calc(var(--selfie-viewer-height, 100dvh) - 4.75rem);
   overflow: auto;
   padding: 0.55rem;
   border: 1px solid rgb(74 155 255 / 38%);
@@ -909,7 +922,7 @@ canvas {
 }
 
 .model-warning {
-  position: fixed;
+  position: absolute;
   right: 0.75rem;
   bottom: 0.75rem;
   z-index: 3;
