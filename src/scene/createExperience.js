@@ -24,12 +24,12 @@ export const RIM_LIGHT_INTENSITY = 1.4;
 export function createExperience(container) {
   const scene = new THREE.Scene();
   const backgroundColor = new THREE.Color(BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT]);
-  container.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.backgroundAsset)}")`;
+  container.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.background.placeholderAsset)}")`;
   container.style.backgroundSize = 'cover';
   container.style.backgroundPosition = 'center';
   container.style.backgroundRepeat = 'no-repeat';
   const videoBackground = createVideoBackground(container,
-    PRESENTATION_CONFIG.backgroundVideoAsset, PRESENTATION_CONFIG.backgroundAsset);
+    PRESENTATION_CONFIG.background.videoAsset, PRESENTATION_CONFIG.background.placeholderAsset);
   const backgroundGrain = createBackgroundGrain(container, PRESENTATION_CONFIG.backgroundGrain);
   if (IS_EMBED_MODE) {
     scene.background = null;

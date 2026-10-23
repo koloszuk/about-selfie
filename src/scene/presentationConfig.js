@@ -1,9 +1,11 @@
 // Presentation only: camera framing does not change the model's scale.
 export const PRESENTATION_CONFIG = Object.freeze({
-  // Version is the first 12 characters of the image's SHA-256. Update when
-  // replacing the PNG so cached images refresh without disabling caching.
-  backgroundAsset: 'BG/BG_placeholder_v01.png?v=7d2dfcb04b14',
-  backgroundVideoAsset: 'BG/AboutSelfie_AnimatedBG_slowHalf_v01.mp4?v=6bca50fdcc9a',
+  // Replace this pair together; placeholder is the video's exact first frame.
+  // Content-hash versions refresh only changed assets, not caching globally.
+  background: Object.freeze({
+    videoAsset: 'BG/AboutSelfie_AnimatedBG_v02_halfSpeed.mp4?v=f51377e1e5e4',
+    placeholderAsset: 'BG/AboutSelfie_AnimatedBG_v02_halfSpeed_firstFrame.webp?v=44b78acfa945',
+  }),
   backgroundGrain: Object.freeze({
     enabled: true,
     opacity: 0.08,

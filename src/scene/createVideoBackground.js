@@ -6,6 +6,7 @@ export function createVideoBackground(container, asset, poster) {
   const video = document.createElement('video');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let disposed = false;
+  const placeholderBackground = `url("${getPublicAssetUrl(poster)}")`;
   video.className = 'selfie-video-background';
   video.muted = true;
   video.defaultMuted = true;
@@ -26,13 +27,17 @@ export function createVideoBackground(container, asset, poster) {
   function reveal() {
     if (!disposed && !reducedMotion.matches && !video.paused && video.readyState >= 2) {
       video.style.opacity = '1';
+      container.style.backgroundImage = 'none';
     }
   }
   function onPlaying() {
     if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(reveal);
     else requestAnimationFrame(() => requestAnimationFrame(reveal));
   }
-  function hide() { video.style.opacity = '0'; }
+  function hide() {
+    container.style.backgroundImage = placeholderBackground;
+    video.style.opacity = '0';
+  }
   function play() {
     if (disposed || reducedMotion.matches || document.hidden) return;
     if (!video.hasAttribute('src')) video.src = getPublicAssetUrl(asset);
