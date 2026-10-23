@@ -63,6 +63,8 @@ export function createVideoBackground(container, asset, poster) {
   updatePreference();
 
   return {
+    video,
+    get ready() { return video.style.opacity === '1' && video.readyState >= 2; },
     dispose() {
       disposed = true;
       reducedMotion.removeEventListener('change', updatePreference);

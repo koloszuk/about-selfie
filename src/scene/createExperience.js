@@ -7,6 +7,7 @@ import { PRESENTATION_CONFIG } from './presentationConfig.js';
 import { createCameraFraming } from './createCameraFraming.js';
 import { createVideoBackground } from './createVideoBackground.js';
 import { createBackgroundGrain } from './createBackgroundGrain.js';
+import { createBackgroundRipple } from './createBackgroundRipple.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
@@ -91,6 +92,12 @@ export function createExperience(container) {
   const lighting = addLighting(scene);
   const environment = createEnvironment({ scene, controls });
   const postProcessing = createPostProcessing({ renderer, scene, camera });
+  const backgroundRipple = createBackgroundRipple({
+    renderer, scene, camera, container, videoBackground, backgroundGrain,
+    grainConfig: PRESENTATION_CONFIG.backgroundGrain, postProcessing,
+    defaults: PRESENTATION_CONFIG.backgroundRipple,
+    placeholderAsset: PRESENTATION_CONFIG.background.placeholderAsset,
+  });
   let hasLoggedPixelRatio = false;
 
   function resize() {
@@ -105,6 +112,7 @@ export function createExperience(container) {
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(width, height, false);
     postProcessing.setSize(width, height, pixelRatio);
+    backgroundRipple.resize(width, height);
     renderer.domElement.dataset.devicePixelRatio = String(devicePixelRatio);
     renderer.domElement.dataset.rendererPixelRatio = String(renderer.getPixelRatio());
     if (!hasLoggedPixelRatio) {
@@ -127,6 +135,7 @@ export function createExperience(container) {
   window.addEventListener('resize', resize);
 
   function dispose() {
+    backgroundRipple.dispose();
     videoBackground.dispose();
     backgroundGrain.dispose();
     resizeObserver.disconnect();
@@ -146,10 +155,11 @@ export function createExperience(container) {
   }
 
   return {
-    scene, camera, renderer, controls, environment, lighting, postProcessing,
+    scene, camera, renderer, controls, environment, lighting, postProcessing, backgroundRipple,
     resize, setBackgroundMode, dispose,
     frameModel(model) {
       framing.setModel(model);
+      backgroundRipple.setModel(model);
       resize();
     },
   };

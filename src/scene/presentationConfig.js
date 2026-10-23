@@ -13,6 +13,17 @@ export const PRESENTATION_CONFIG = Object.freeze({
     size: 1, // Noise pixel size; resolution is capped for mobile performance.
     fps: 10,
   }),
+  backgroundRipple: Object.freeze({
+    enabled: true,
+    intervalSeconds: 5,
+    durationSeconds: 4,
+    strengthPx: 24,
+    expansionPx: 180,
+    softnessPx: 24,
+    easing: 3,
+    referenceHeight: 475, // Pixel settings scale proportionally with the viewer.
+    maskResolution: 256, // Long edge; captured only once per ripple.
+  }),
   autoOrbit: Object.freeze({
     initialHorizontalDeg: 35, // Positive means the face points screen-right.
     initialPitchDeg: -2.5, // Camera elevation: 4° below the previous +1.5°,

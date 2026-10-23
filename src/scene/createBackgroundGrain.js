@@ -12,6 +12,7 @@ export function createBackgroundGrain(container, config) {
   let pixels;
   let words;
   let timer;
+  let revision = 0;
   let seed = (Math.random() * 0xffffffff) >>> 0 || 1;
 
   function draw() {
@@ -21,6 +22,7 @@ export function createBackgroundGrain(container, config) {
       words[i] = (0xff000000 | gray * 0x010101) >>> 0;
     }
     context.putImageData(pixels, 0, 0);
+    revision += 1;
   }
   function resize() {
     // Cap at ~160k noise pixels, scaled to cover the viewer without repetition.
@@ -47,6 +49,8 @@ export function createBackgroundGrain(container, config) {
   document.addEventListener('visibilitychange', schedule);
   reducedMotion.addEventListener('change', schedule);
   return {
+    canvas,
+    get revision() { return revision; },
     dispose() {
       clearInterval(timer);
       observer.disconnect();
