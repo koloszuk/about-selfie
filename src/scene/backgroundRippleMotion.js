@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 
-// Fixed shader/pool capacity; the live setting may choose any lower limit.
-export const MAX_RIPPLE_WAVES = 6;
-
 /** Rigid projected landmarks, sampled AFTER the final animation/head pose.
  * Geometry/morph edits and independent eye transforms never enter this metric.
  * Units are CSS pixels/second at the reference portrait height. */
@@ -42,37 +39,30 @@ export function getMovementDrive(speed, settings) {
   const threshold = Math.max(settings.movementThreshold, 0.1);
   const knee = THREE.MathUtils.smoothstep(speed * settings.movementSensitivity,
     threshold * 0.85, threshold * 4);
-  return knee ** settings.intensityResponse;
+  return knee ** 0.8; // Retain the calibrated continuous speed response.
 }
 
-export function getWaveEnvelope(age, settings) {
-  const t = THREE.MathUtils.clamp(age / settings.durationSeconds, 0, 1);
-  const entrance = settings.intensityEaseInSeconds > 0
-    ? THREE.MathUtils.smootherstep(age, 0, Math.min(settings.intensityEaseInSeconds, settings.durationSeconds)) : 1;
-  return entrance * (1 - t) ** 2;
+// CFL stability bound for the explicit 2D wave equation, in reference pixels.
+export function getWaveStepSeconds(width, height, aspect, referenceHeight, speed, simulationHz) {
+  const cellSize = Math.min(referenceHeight * aspect / width, referenceHeight / height);
+  return Math.min(1 / simulationHz, 0.65 * cellSize / Math.max(speed, 1));
 }
 
-/** Distance AND time must qualify. Never queues emissions through a stop,
- * a full pool, a hidden tab, or a disabled effect. */
-export function createMovementEmitter() {
-  let elapsed = 0, distance = 0;
+/** Continuous fixed-step feedback, not an emission scheduler. No event slots,
+ * ages, intervals or per-emission envelopes. Discard backlog on severe stalls. */
+export function createWavefieldStepper(maxSteps) {
+  let accumulator = 0;
   return {
-    reset() { elapsed = 0; distance = 0; },
-    update(delta, rawSpeed, smoothedSpeed, drive, settings, hasFreeSlot) {
-      const moving = rawSpeed * settings.movementSensitivity > settings.movementThreshold * 0.85 && drive > 0.002;
-      if (!moving) { elapsed = 0; distance = 0; return false; }
-      // Budget by lifetime as well as speed. Filling all slots in a short burst
-      // would otherwise cause a long pause and repeating clusters under a
-      // sustained drag. Even spacing keeps the bounded pool continuously fed.
-      const capacityRate = Math.max(1, Math.round(settings.maxWaves)) / settings.durationSeconds;
-      const rate = Math.min(6, capacityRate, settings.waveFrequency * (0.35 +
-        1.65 * drive ** settings.frequencyResponse));
-      const spacing = settings.waveSpacingPx * (1 - 0.5 * drive);
-      elapsed = Math.min(elapsed + delta, 1 / rate);
-      distance = Math.min(distance + smoothedSpeed * delta, spacing * 2);
-      if (!hasFreeSlot || elapsed + 1e-8 < 1 / rate || distance < spacing) return false;
-      elapsed = 0; distance = 0;
-      return true;
+    reset() { accumulator = 0; },
+    advance(delta, stepSeconds, step) {
+      accumulator = Math.min(accumulator + Math.max(delta, 0), stepSeconds * maxSteps);
+      let count = 0;
+      while (accumulator + 1e-9 >= stepSeconds && count < maxSteps) {
+        step(stepSeconds);
+        accumulator = Math.max(0, accumulator - stepSeconds);
+        count += 1;
+      }
+      return count;
     },
   };
 }

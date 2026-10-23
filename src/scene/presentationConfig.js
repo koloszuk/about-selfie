@@ -17,25 +17,18 @@ export const PRESENTATION_CONFIG = Object.freeze({
     enabled: true,
     movementThreshold: 8, // Reference CSS px/s; calibrated above the 2°/s auto-orbit.
     movementSensitivity: 1,
-    intensityResponse: 0.8,
-    frequencyResponse: 1,
     movementSmoothing: 0.14, // Exponential time constant in seconds.
-    nearHeadStrengthPx: 12,
-    nearHeadWidthPx: 32,
-    nearHeadFadeSpeed: 5, // Exponential release rate, per second.
-    waveFrequency: 1.5, // Speed-dependent, also budgeted by pool size / wave lifetime.
-    waveSpacingPx: 14,
-    maxWaves: 5, // Fixed preallocated capacity is 6; no replacement/popping when full.
-    durationSeconds: 3.5,
-    startInsetPx: 8,
-    intensityEaseInSeconds: 0.2,
-    strengthPx: 20,
-    expansionPx: 180,
-    softnessPx: 28,
-    easing: 2.2,
+    strengthPx: 85, // Deliberately strong first-pass feedback-field displacement.
+    propagationSpeedPx: 90, // Reference pixels per second, not an emission frequency.
+    dissipation: 1.1, // Damped wave equation; higher values dissipate faster.
+    density: 8, // Spatial frequency of the continuous, non-periodic source pressure.
+    nearHeadStrengthPx: 45,
     referenceHeight: 475, // Pixel settings scale proportionally with the viewer.
     maskResolution: 256,
-    silhouetteUpdateHz: 15, // Shared live near-field; waves retain their own frozen copy.
+    silhouetteUpdateHz: 20, // Interpolated evolving source, never frozen event snapshots.
+    simulationHz: 120,
+    maxSimulationSteps: 8,
+    sourceWidthPx: 20, // Internal smooth pressure band, shared by near/outward distortion.
   }),
   autoOrbit: Object.freeze({
     initialHorizontalDeg: 35, // Positive means the face points screen-right.
