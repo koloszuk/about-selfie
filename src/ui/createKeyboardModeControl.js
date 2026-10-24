@@ -51,9 +51,11 @@ export function createKeyboardModeControl(
   const faceEntries = [];
   const legendLetters = [...keyboardName.querySelectorAll('[data-keyboard-name-key]')];
   const availableKeys = Object.keys(KEYBOARD_MODE_CONFIG.keyToPickName);
-  const pressedKeys = new Set();
-  const pressedShiftCodes = new Set();
-  const keySources = new Map();
+  const actions = createKeyboardActionState({
+    getEntry: key => entries.find(item => item.key === key),
+    deformationControls, blinkController, eyeFollower,
+  });
+  const pressedKeys = actions.pressedKeys;
   const pointerKeys = new Map();
   let isEnabled = KEYBOARD_MODE_CONFIG.enabledByDefault;
 
@@ -77,14 +79,14 @@ export function createKeyboardModeControl(
   }
   const blinkEntry = document.createElement('div');
   blinkEntry.className = 'keyboard-mode-entry keyboard-space-entry';
-  blinkEntry.innerHTML = '<kbd>Space</kbd><span>Blink (ease hold)</span>';
+  blinkEntry.innerHTML = '<kbd>Space</kbd><span>Blink</span>';
   mappings.appendChild(blinkEntry);
   entries.push({ key: 'SPACE', pickName: null, entry: blinkEntry, highlightedUntil: 0 });
   const eyePopEntry = document.createElement('div');
   eyePopEntry.className = 'keyboard-mode-entry keyboard-space-entry';
-  eyePopEntry.innerHTML = '<kbd>Shift</kbd><span>Eyes</span>';
+  eyePopEntry.innerHTML = `<kbd>${KEYBOARD_MODE_CONFIG.specialKeys.eyePop}</kbd><span>Eyes</span>`;
   mappings.appendChild(eyePopEntry);
-  entries.push({ key: 'SHIFT', pickName: null, entry: eyePopEntry, highlightedUntil: 0 });
+  entries.push({ key: KEYBOARD_MODE_CONFIG.specialKeys.eyePop, pickName: null, entry: eyePopEntry, highlightedUntil: 0 });
 
   for (const binding of faceEntries) {
     const row = document.createElement('label');
@@ -150,60 +152,34 @@ export function createKeyboardModeControl(
   function handleKeyDown(event) {
     if (!isEnabled || event.defaultPrevented || isTypingTarget(event.target)) return;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
-    if ((event.code === 'Space' || event.code === 'Enter') && event.target.closest?.('button')) return;
-    if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
-      if (pressedShiftCodes.has(event.code)) return;
-      const wasInactive = pressedShiftCodes.size === 0;
-      pressedShiftCodes.add(event.code);
-      if (wasInactive) eyeFollower?.setEyePopHeld(true);
-      return;
-    }
+    // Space remains the blink shortcut even just after clicking the mode
+    // switch. Enter still provides normal keyboard activation for UI buttons.
+    if (event.code === 'Enter' && event.target.closest?.('button')) return;
     const key = event.code === 'Space' ? 'SPACE' : event.key.toUpperCase();
+    if (key === KEYBOARD_MODE_CONFIG.specialKeys.blink && event.repeat) {
+      event.preventDefault(); return;
+    }
     if (pressKey(key, event.code)) event.preventDefault();
   }
 
   function handleKeyUp(event) {
-    if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
-      if (!pressedShiftCodes.delete(event.code)) return;
-      if (pressedShiftCodes.size === 0) eyeFollower?.setEyePopHeld(false);
-      return;
-    }
     const key = event.code === 'Space' ? 'SPACE' : event.key.toUpperCase();
-    if (releaseKey(key, event.code)) event.preventDefault();
+    if (releaseKey(key, event.code) && !isTypingTarget(event.target)) event.preventDefault();
   }
 
   // Each mapped letter has one deformation, even with two onscreen copies,
   // multiple touch points, and a physical key held at the same time.
   function pressKey(key, source) {
     if (!isEnabled) return false;
-    const entry = entries.find(item => item.key === key && item.key !== 'SHIFT');
-    if (!entry) return false;
-    let sources = keySources.get(key);
-    if (sources?.has(source)) return true;
-    if (!sources?.size) {
-      const triggered = key === 'SPACE' ? blinkController?.setSpacebarHeld(true)
-        : deformationControls.triggerKeyboardPulseByPickName(entry.pickName);
-      if (!triggered) return false;
-      sources = new Set();
-      keySources.set(key, sources);
-      pressedKeys.add(key);
-    }
-    sources.add(source);
+    const handled = actions.press(key, source);
     syncLetterHighlights();
-    return true;
+    return handled;
   }
 
   function releaseKey(key, source) {
-    const sources = keySources.get(key);
-    if (!sources?.delete(source)) return false;
-    if (sources.size) return true;
-    keySources.delete(key);
-    pressedKeys.delete(key);
-    const entry = entries.find(item => item.key === key);
-    if (key === 'SPACE') blinkController?.setSpacebarHeld(false);
-    else if (entry) deformationControls.releaseKeyboardPulseByPickName(entry.pickName);
+    const handled = actions.release(key, source);
     syncLetterHighlights();
-    return true;
+    return handled;
   }
 
   function syncLetterHighlights() {
@@ -233,13 +209,13 @@ export function createKeyboardModeControl(
     });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) letter.addEventListener(type, releasePointer);
     letter.addEventListener('keydown', event => {
-      if (!['Enter', ' '].includes(event.key)) return;
+      if (event.key !== 'Enter') return;
       pressKey(letter.dataset.keyboardNameKey, 'button-key');
       event.preventDefault();
       event.stopPropagation();
     });
     letter.addEventListener('keyup', event => {
-      if (!['Enter', ' '].includes(event.key)) return;
+      if (event.key !== 'Enter') return;
       releaseKey(letter.dataset.keyboardNameKey, 'button-key');
       event.preventDefault();
       event.stopPropagation();
@@ -248,16 +224,8 @@ export function createKeyboardModeControl(
   }
 
   function releasePressedKeys() {
-    for (const key of pressedKeys) {
-      const entry = entries.find((item) => item.key === key);
-      if (key === 'SPACE') blinkController?.setSpacebarHeld(false);
-      else if (entry) deformationControls.releaseKeyboardPulseByPickName(entry.pickName);
-    }
-    pressedKeys.clear();
-    keySources.clear();
+    actions.clear();
     pointerKeys.clear();
-    pressedShiftCodes.clear();
-    eyeFollower?.setEyePopHeld(false);
     syncLetterHighlights();
   }
 
@@ -271,6 +239,8 @@ export function createKeyboardModeControl(
 
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('pointerup', releasePointer);
+  window.addEventListener('pointercancel', releasePointer);
   window.addEventListener('blur', releasePressedKeys);
   function handleVisibilityChange() { if (document.hidden) releasePressedKeys(); }
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -283,9 +253,7 @@ export function createKeyboardModeControl(
     update() {
       const now = performance.now();
       for (const entry of entries) {
-        const isHeld = entry.key === 'SHIFT'
-          ? pressedShiftCodes.size > 0
-          : pressedKeys.has(entry.key);
+        const isHeld = pressedKeys.has(entry.key);
         entry.entry.classList.toggle(
           'is-triggered',
           isHeld || entry.highlightedUntil > now,
@@ -295,6 +263,8 @@ export function createKeyboardModeControl(
     dispose() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('pointerup', releasePointer);
+      window.removeEventListener('pointercancel', releasePointer);
       window.removeEventListener('blur', releasePressedKeys);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releasePressedKeys();
@@ -302,6 +272,51 @@ export function createKeyboardModeControl(
       settings.remove();
     },
   };
+}
+
+// Shared action state for physical keys, accessible buttons and pointer holds.
+// Tracking sources independently prevents one input releasing another's hold.
+export function createKeyboardActionState({ getEntry, deformationControls, blinkController, eyeFollower }) {
+  const pressedKeys = new Set(), keySources = new Map();
+  const { blink, eyePop } = KEYBOARD_MODE_CONFIG.specialKeys;
+  function press(key, source) {
+    const entry = getEntry(key);
+    if (!entry) return false;
+    let sources = keySources.get(key);
+    if (sources?.has(source)) return true;
+    if (!sources?.size) {
+      if (key === blink) {
+        // Consume the press even if an existing blink rejects it. Auto-repeat
+        // must not start a later blink once the current animation finishes.
+        blinkController?.playNow();
+      } else if (key === eyePop) {
+        eyeFollower?.setEyePopHeld(true);
+      } else if (!deformationControls.triggerKeyboardPulseByPickName(entry.pickName)) return false;
+      sources = new Set(); keySources.set(key, sources); pressedKeys.add(key);
+    }
+    sources.add(source);
+    return true;
+  }
+  function release(key, source) {
+    const sources = keySources.get(key);
+    if (!sources?.delete(source)) return false;
+    if (sources.size) return true;
+    keySources.delete(key); pressedKeys.delete(key);
+    const entry = getEntry(key);
+    if (key === eyePop) eyeFollower?.setEyePopHeld(false);
+    else if (key !== blink && entry && ![...pressedKeys].some(other => getEntry(other)?.pickName === entry.pickName)) {
+      deformationControls.releaseKeyboardPulseByPickName(entry.pickName);
+    }
+    return true;
+  }
+  function clear() {
+    for (const key of pressedKeys) {
+      const entry = getEntry(key);
+      if (key !== blink && key !== eyePop && entry) deformationControls.releaseKeyboardPulseByPickName(entry.pickName);
+    }
+    eyeFollower?.setEyePopHeld(false); pressedKeys.clear(); keySources.clear();
+  }
+  return { pressedKeys, press, release, clear };
 }
 
 function createKeyboardNameLegend() {
