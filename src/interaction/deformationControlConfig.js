@@ -67,7 +67,7 @@ export const KEYBOARD_MODE_CONFIG = Object.freeze({
   enabledByDefault: false,
   keyToPickName: Object.freeze({
     D: 'PICK_Nose',
-    A: 'PICK_CheekRight',
+    A: 'PICK_Bridge',
     N: 'PICK_EarLeft',
     I: 'PICK_EarRight',
     E: 'PICK_EyebrowLeft',
@@ -76,10 +76,10 @@ export const KEYBOARD_MODE_CONFIG = Object.freeze({
     O: 'PICK_MouthRight',
     G: 'PICK_MouthCenter',
     U: 'PICK_Chin',
-    S: 'PICK_CheekLeft',
     B: 'PICK_Forehead',
     T: 'PICK_Bridge',
   }),
+  specialKeys: Object.freeze({ blink: 'SPACE', eyePop: 'S' }),
   // A brief attack makes a keyboard hit feel immediate before its independent
   // spring returns it to the pose that existed before the key press.
   attackSpeed: 72,
