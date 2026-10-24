@@ -2,6 +2,7 @@ const SECTIONS = [
   ['follow', 'Cursor Tracking'],
   ['keyboard', 'Keyboard Settings'],
   ['eyeAlign', 'Eye Align'],
+  ['upperEyelid', 'Upper Eyelid Tracking'],
   ['squinting', 'Squinting'],
   ['range', 'Deformation Range Tuning'],
   ['spring', 'Release Spring Settings'],
