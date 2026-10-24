@@ -40,6 +40,8 @@ import { createAutoOrbit } from './scene/createAutoOrbit.js';
 import { PRESENTATION_CONFIG } from './scene/presentationConfig.js';
 import { createBackgroundRippleControl } from './ui/createBackgroundRippleControl.js';
 import { createFrameProfiler } from './scene/createFrameProfiler.js';
+import { createUpperEyelidTracking } from './interaction/createUpperEyelidTracking.js';
+import { createUpperEyelidTrackingControl } from './ui/createUpperEyelidTrackingControl.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -82,6 +84,7 @@ let eyeAlignController;
 let eyeAlignControl;
 let autoOrbit;
 let backgroundRippleControl;
+let upperEyelidTracking;
 
 async function initialize() {
   status.hidden = false;
@@ -185,6 +188,10 @@ async function initialize() {
       deformer: headDeformer,
       gaze: eyeFollower.gaze,
     });
+    upperEyelidTracking = createUpperEyelidTracking({
+      deformer: headDeformer, eyePivots: eyeFollower.eyePivots, eyeHoverClose,
+    });
+    createUpperEyelidTrackingControl(advancedSettings.getSection('upperEyelid'), upperEyelidTracking);
     deformationControls = createDeformationControls({
       deformer: headDeformer,
       model: head,
@@ -296,8 +303,6 @@ function animate() {
   if (!idleController?.active) eyeHoverClose?.updateEyeHoverClose(delta);
   else deformationControls?.setEyeHoverFaceReaction(0, 0);
   deformationControls?.update(delta, performanceAnalytics);
-  headDeformer?.commit();
-  hairSurfaceBinding?.updateHairSurfaceBinding();
   headFollower?.updateEyeHoverReaction(delta);
   headFollower?.root.updateWorldMatrix(true, true);
   const eyeHoverAlignmentActive = Boolean(
@@ -319,6 +324,9 @@ function animate() {
     interactionActive: eyeAlignmentInteractionActive,
     deltaTime: delta,
   });
+  upperEyelidTracking?.update(delta);
+  headDeformer?.commit();
+  hairSurfaceBinding?.updateHairSurfaceBinding();
   springDebugControl?.update();
   rangeTuningControl?.update();
   wiggleControl?.update();
