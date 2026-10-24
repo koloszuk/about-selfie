@@ -81,6 +81,19 @@ export function createHeadDeformer(head) {
     originalPositions,
     beginFrame,
     addInfluence,
+    // Compact authored per-vertex deltas share the existing accumulation and
+    // normal update path. Do not append morph slots to mixer-owned arrays.
+    addVertexOffsets(indices, offsets, influence) {
+      if (influence <= 0.000001) return;
+      hasContributions = true;
+      for (let i = 0; i < indices.length; i += 1) {
+        const destination = indices[i] * 3;
+        const source = i * 3;
+        frameOffsets[destination] += offsets[source] * influence;
+        frameOffsets[destination + 1] += offsets[source + 1] * influence;
+        frameOffsets[destination + 2] += offsets[source + 2] * influence;
+      }
+    },
     commit,
     setPerformanceTimingEnabled(value) {
       performanceTimingEnabled = Boolean(value);
