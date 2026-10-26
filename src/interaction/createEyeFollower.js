@@ -429,20 +429,35 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
     for (const eye of eyePivots) {
       if (yaw === 0 && pitch === 0) {
         eye.microSaccadePivot.quaternion.identity();
+        eye.microAppliedYaw = 0; eye.microAppliedPitch = 0;
         continue;
       }
       // Keep the tracking pivot and mixer-owned eye untouched. Reconstruct a
       // bounded delta from the clean procedural pose, never last frame's noise.
       microBaseRotation.copy(eye.inverseRestLocalRotation).multiply(eye.pivot.quaternion).normalize();
       microEuler.setFromQuaternion(microBaseRotation, 'YXZ');
+      const baseYaw = microEuler.y, basePitch = microEuler.x;
       microEuler.y = THREE.MathUtils.clamp(microEuler.y + yaw,
         Math.min(eye.minYaw, microEuler.y), Math.max(eye.maxYaw, microEuler.y));
       microEuler.x = THREE.MathUtils.clamp(microEuler.x + pitch,
         Math.min(-eye.maxPitch, microEuler.x), Math.max(eye.maxPitch, microEuler.x));
       microTargetRotation.setFromEuler(microEuler);
+      eye.microAppliedYaw = microEuler.y - baseYaw;
+      eye.microAppliedPitch = microEuler.x - basePitch;
       eye.microSaccadePivot.quaternion.copy(microBaseRotation).invert()
         .multiply(microTargetRotation).normalize();
     }
+  }
+
+  function getMicroSaccadeTestDirection() {
+    let positiveRoom = 0, negativeRoom = 0;
+    for (const eye of eyePivots) {
+      microBaseRotation.copy(eye.inverseRestLocalRotation).multiply(eye.pivot.quaternion).normalize();
+      microEuler.setFromQuaternion(microBaseRotation, 'YXZ');
+      positiveRoom += Math.max(0, eye.maxYaw - microEuler.y - eye.microAppliedYaw);
+      negativeRoom += Math.max(0, microEuler.y + eye.microAppliedYaw - eye.minYaw);
+    }
+    return Math.abs(positiveRoom - negativeRoom) < 0.001 ? 0 : positiveRoom > negativeRoom ? 1 : -1;
   }
 
   function updateTargetGaze() {
@@ -478,6 +493,9 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
     setForcedGaze,
     setEyePopHeld,
     applyMicroSaccade,
+    getMicroSaccadeTestDirection,
+    getAppliedMicroSaccades: () => eyePivots,
+    get cursorTrackingActive() { return !idleMode && (Boolean(forcedGaze) || (enabled && pointer.inside)); },
     get alignmentInputActive() {
       if (idleMode) return false;
       return Boolean(forcedGaze) || eyePopHeld || !eyePopSettled ||
@@ -556,6 +574,8 @@ function createEyePivot(head, definition, eyePopConfig) {
     alignmentPivot,
     pivot,
     microSaccadePivot,
+    microAppliedYaw: 0,
+    microAppliedPitch: 0,
     minYaw: -EYE_YAW_MAX,
     maxYaw: EYE_YAW_MAX,
     maxPitch: EYE_VERTICAL_LIMIT,
