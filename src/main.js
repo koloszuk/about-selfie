@@ -88,6 +88,7 @@ let autoOrbit;
 let backgroundRippleControl;
 let upperEyelidTracking;
 let microSaccades;
+let microSaccadesControl;
 
 async function initialize() {
   status.hidden = false;
@@ -169,8 +170,10 @@ async function initialize() {
     microSaccades = createMicroSaccades({
       pointer, applyOffset: eyeFollower.applyMicroSaccade,
       observeElement: experience.renderer.domElement,
+      preferredTestDirection: eyeFollower.getMicroSaccadeTestDirection,
+      getAppliedOffsets: eyeFollower.getAppliedMicroSaccades,
     });
-    createMicroSaccadesControl(advancedSettings.getSection('microSaccades'), microSaccades);
+    microSaccadesControl = createMicroSaccadesControl(advancedSettings.getSection('microSaccades'), microSaccades);
     eyeAlignController = createEyeAlignController({
       eyePivots: eyeFollower.eyePivots,
     });
@@ -332,7 +335,9 @@ function animate() {
     interactionActive: eyeAlignmentInteractionActive,
     deltaTime: delta,
   });
-  microSaccades?.update(delta, idleController?.alignmentBlend ?? 0, document.hidden);
+  microSaccades?.update(delta, idleController?.alignmentBlend ?? 0, document.hidden,
+    eyeFollower?.cursorTrackingActive ?? false, idleController?.active ?? false);
+  microSaccadesControl?.update(delta);
   upperEyelidTracking?.update(delta);
   headDeformer?.commit();
   hairSurfaceBinding?.updateHairSurfaceBinding();
