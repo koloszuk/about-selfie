@@ -67,6 +67,9 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
   const desiredLocalRotation = new THREE.Quaternion();
   const deltaRotation = new THREE.Quaternion();
   const deltaEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  const microBaseRotation = new THREE.Quaternion();
+  const microTargetRotation = new THREE.Quaternion();
+  const microEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   const eyePivots = EYE_DEFINITIONS.map(
     (definition) => createEyePivot(head, definition, eyePopConfig),
   );
@@ -383,6 +386,9 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
       -maxPitch,
       maxPitch,
     );
+    eye.minYaw = minYaw;
+    eye.maxYaw = maxYawAsymmetric;
+    eye.maxPitch = maxPitch;
 
     deltaEuler.set(pitch, yaw, 0, 'YXZ');
     deltaRotation.setFromEuler(deltaEuler);
@@ -419,6 +425,26 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
     updateEyes(delta);
   }
 
+  function applyMicroSaccade(yaw, pitch) {
+    for (const eye of eyePivots) {
+      if (yaw === 0 && pitch === 0) {
+        eye.microSaccadePivot.quaternion.identity();
+        continue;
+      }
+      // Keep the tracking pivot and mixer-owned eye untouched. Reconstruct a
+      // bounded delta from the clean procedural pose, never last frame's noise.
+      microBaseRotation.copy(eye.inverseRestLocalRotation).multiply(eye.pivot.quaternion).normalize();
+      microEuler.setFromQuaternion(microBaseRotation, 'YXZ');
+      microEuler.y = THREE.MathUtils.clamp(microEuler.y + yaw,
+        Math.min(eye.minYaw, microEuler.y), Math.max(eye.maxYaw, microEuler.y));
+      microEuler.x = THREE.MathUtils.clamp(microEuler.x + pitch,
+        Math.min(-eye.maxPitch, microEuler.x), Math.max(eye.maxPitch, microEuler.x));
+      microTargetRotation.setFromEuler(microEuler);
+      eye.microSaccadePivot.quaternion.copy(microBaseRotation).invert()
+        .multiply(microTargetRotation).normalize();
+    }
+  }
+
   function updateTargetGaze() {
     if (forcedGaze) {
       targetGaze.copy(forcedGaze);
@@ -451,6 +477,7 @@ export function createEyeFollower({ head, pointer, camera, eyePopConfig = EYE_PO
     setIdleMode,
     setForcedGaze,
     setEyePopHeld,
+    applyMicroSaccade,
     get alignmentInputActive() {
       if (idleMode) return false;
       return Boolean(forcedGaze) || eyePopHeld || !eyePopSettled ||
@@ -484,6 +511,7 @@ function createEyePivot(head, definition, eyePopConfig) {
   const positionParent = new THREE.Object3D();
   const alignmentPivot = new THREE.Object3D();
   const pivot = new THREE.Object3D();
+  const microSaccadePivot = new THREE.Object3D();
   const scaledCenter = geometryCenter.clone().multiply(eye.scale).applyQuaternion(eye.quaternion);
 
   positionParent.name = `${definition.key}_PopPosition`;
@@ -494,15 +522,17 @@ function createEyePivot(head, definition, eyePopConfig) {
   pivot.position.set(0, 0, 0);
   pivot.quaternion.copy(eye.quaternion);
   pivot.scale.copy(eye.scale);
+  microSaccadePivot.name = `${definition.key}_MicroSaccadePivot`;
 
   const parent = eye.parent;
   parent.add(positionParent);
   positionParent.add(alignmentPivot);
   alignmentPivot.add(pivot);
+  pivot.add(microSaccadePivot);
   // attach() keeps the exported world transforms intact while both eye layers
   // inherit the same gaze rotation from the base-eye pivot.
-  pivot.attach(eye);
-  if (cornea) pivot.attach(cornea);
+  microSaccadePivot.attach(eye);
+  if (cornea) microSaccadePivot.attach(cornea);
 
   const calibration = EYE_ROTATION_OFFSETS[definition.key];
   const calibrationRotation = new THREE.Quaternion().setFromEuler(
@@ -525,6 +555,10 @@ function createEyePivot(head, definition, eyePopConfig) {
     positionParent,
     alignmentPivot,
     pivot,
+    microSaccadePivot,
+    minYaw: -EYE_YAW_MAX,
+    maxYaw: EYE_YAW_MAX,
+    maxPitch: EYE_VERTICAL_LIMIT,
     restPosition,
     outwardDirection,
     fullPopOffset,
