@@ -42,6 +42,8 @@ import { createBackgroundRippleControl } from './ui/createBackgroundRippleContro
 import { createFrameProfiler } from './scene/createFrameProfiler.js';
 import { createUpperEyelidTracking } from './interaction/createUpperEyelidTracking.js';
 import { createUpperEyelidTrackingControl } from './ui/createUpperEyelidTrackingControl.js';
+import { createMicroSaccades } from './interaction/createMicroSaccades.js';
+import { createMicroSaccadesControl } from './ui/createMicroSaccadesControl.js';
 
 const container = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -85,6 +87,7 @@ let eyeAlignControl;
 let autoOrbit;
 let backgroundRippleControl;
 let upperEyelidTracking;
+let microSaccades;
 
 async function initialize() {
   status.hidden = false;
@@ -163,6 +166,11 @@ async function initialize() {
       pointer,
       camera: experience.camera,
     });
+    microSaccades = createMicroSaccades({
+      pointer, applyOffset: eyeFollower.applyMicroSaccade,
+      observeElement: experience.renderer.domElement,
+    });
+    createMicroSaccadesControl(advancedSettings.getSection('microSaccades'), microSaccades);
     eyeAlignController = createEyeAlignController({
       eyePivots: eyeFollower.eyePivots,
     });
@@ -324,6 +332,7 @@ function animate() {
     interactionActive: eyeAlignmentInteractionActive,
     deltaTime: delta,
   });
+  microSaccades?.update(delta, idleController?.alignmentBlend ?? 0, document.hidden);
   upperEyelidTracking?.update(delta);
   headDeformer?.commit();
   hairSurfaceBinding?.updateHairSurfaceBinding();
