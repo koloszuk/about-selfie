@@ -2,7 +2,7 @@ import { MathUtils } from 'three';
 
 export const MICRO_SACCADE_DEFAULTS = Object.freeze({
   enabled: true,
-  intensity: 1.75, // Maximum horizontal additive offset, in degrees (0–5).
+  intensity: 3, // Maximum horizontal additive offset, in degrees (0–5).
   minInterval: 0.5,
   maxInterval: 2,
   allowDuringCursorTracking: true,
