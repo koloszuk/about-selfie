@@ -10,6 +10,9 @@ function seededRandom(seed = 17) {
 const pointer = { client: new THREE.Vector2(), ndc: new THREE.Vector2(), inside: false };
 let outputYaw = 0, outputPitch = 0;
 const config = { ...MICRO_SACCADE_DEFAULTS };
+assert.equal(config.intensity, 3);
+assert.equal(config.minInterval, 0.5);
+assert.equal(config.maxInterval, 2);
 const micro = createMicroSaccades({ pointer, config, random: seededRandom(),
   applyOffset(yaw, pitch) { outputYaw = yaw; outputPitch = pitch; } });
 assert(micro.nextIn <= 0.1, 'Prompt initial activation');
@@ -19,8 +22,8 @@ for (let i = 0; i < 120 * 120; i++) {
   micro.update(1 / 120);
   if (micro.phase === 'correction-pause') sawCorrection = true;
   maximumStep = Math.max(maximumStep, Math.abs(outputYaw - lastYaw)); lastYaw = outputYaw;
-  assert(Math.abs(outputYaw) <= THREE.MathUtils.degToRad(1.75) + 1e-10);
-  assert(Math.abs(outputPitch) <= THREE.MathUtils.degToRad(1.75 * 0.28) + 1e-10);
+  assert(Math.abs(outputYaw) <= THREE.MathUtils.degToRad(config.intensity) + 1e-10);
+  assert(Math.abs(outputPitch) <= THREE.MathUtils.degToRad(config.intensity * MICRO_SACCADE_CHARACTER.verticalRatio) + 1e-10);
   if (micro.movementCount !== previousCount) {
     const time = i / 120;
     intervals.push(time - lastPrimary); lastPrimary = time; previousCount = micro.movementCount;
@@ -33,7 +36,7 @@ assert(intervals.slice(1).every(interval => interval >= 0.49 && interval <= 2.02
 assert(new Set(intervals.map(value => value.toFixed(1))).size > 3, 'Irregular timing');
 assert(movements.size > 5, 'Not a repeating return-to-zero oscillator');
 assert(sawCorrection, 'Occasional small corrective movements are scheduled');
-assert(maximumStep < THREE.MathUtils.degToRad(0.5), 'Fast movements remain continuous at 120 Hz');
+assert(maximumStep < THREE.MathUtils.degToRad(config.intensity * 0.3), 'Fast movements remain continuous at 120 Hz');
 
 const beforeIdle = micro.nextIn, beforeCount = micro.movementCount;
 for (let i = 0; i < 300; i++) micro.update(1 / 60, 1);
