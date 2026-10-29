@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export const COLOR_GRADING_REFERENCE = Object.freeze({
   enabled: true, intensity: 100,
   shadowRed: 25, shadowGreen: 8, shadowBlue: 19,
@@ -6,6 +8,29 @@ export const COLOR_GRADING_REFERENCE = Object.freeze({
   inputBlack: 0, inputWhite: 32768, gamma: 0.87,
   outputBlack: 1799, outputWhite: 32768,
 });
+export const COLOR_GRADING_NEUTRAL = Object.freeze({
+  enabled: true, intensity: 100,
+  shadowRed: 0, shadowGreen: 0, shadowBlue: 0,
+  midtoneRed: 0, midtoneGreen: 0, midtoneBlue: 0,
+  highlightRed: 0, highlightGreen: 0, highlightBlue: 0,
+  inputBlack: 0, inputWhite: 32768, gamma: 1,
+  outputBlack: 0, outputWhite: 32768,
+});
+const gradingShader = `
+uniform vec3 selfieGradeShadows, selfieGradeMidtones, selfieGradeHighlights;
+uniform vec4 selfieGradeLevels;
+uniform float selfieGradeGamma, selfieGradeStrength;
+vec3 selfieGrade(vec3 source) {
+  vec3 shadows = 1.0 - smoothstep(vec3(0.0), vec3(0.5), source);
+  vec3 highlights = smoothstep(vec3(0.5), vec3(1.0), source);
+  vec3 balanced = clamp(source + 0.005 * (selfieGradeShadows * shadows +
+    selfieGradeMidtones * (1.0 - shadows - highlights) + selfieGradeHighlights * highlights), 0.0, 1.0);
+  vec3 normalized = clamp((balanced - selfieGradeLevels.x) /
+    max(selfieGradeLevels.y - selfieGradeLevels.x, 1.0 / 32768.0), 0.0, 1.0);
+  vec3 adjusted = selfieGradeLevels.z + pow(normalized, vec3(1.0 / selfieGradeGamma)) *
+    (selfieGradeLevels.w - selfieGradeLevels.z);
+  return mix(source, clamp(adjusted, 0.0, 1.0), selfieGradeStrength);
+}`;
 const clamp = value => Math.min(1, Math.max(0, value));
 const smooth = value => { const t = clamp(value); return t * t * (3 - 2 * t); };
 
@@ -33,21 +58,48 @@ export function createColorGrading(parent) {
   visual.className = 'selfie-graded-visual';
   visual.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;isolation:isolate;';
   parent.prepend(visual);
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
-  svg.style.position = 'absolute'; svg.setAttribute('aria-hidden', 'true');
-  svg.innerHTML = `<defs><filter id="selfie-color-grade" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="table"/><feFuncG type="table"/><feFuncB type="table"/><feFuncA type="identity"/></feComponentTransfer></filter></defs>`;
-  parent.appendChild(svg);
+  const uniforms = {
+    selfieGradeShadows: { value: new THREE.Vector3() },
+    selfieGradeMidtones: { value: new THREE.Vector3() },
+    selfieGradeHighlights: { value: new THREE.Vector3() },
+    selfieGradeLevels: { value: new THREE.Vector4() },
+    selfieGradeGamma: { value: 1 }, selfieGradeStrength: { value: 0 },
+  };
   function sync() {
-    for (const [channel, tag] of [['Red', 'R'], ['Green', 'G'], ['Blue', 'B']]) {
-      const values = [];
-      for (let i = 0; i < 256; i++) values.push(gradeChannel(i / 255, channel, config).toFixed(6));
-      svg.querySelector(`feFunc${tag}`).setAttribute('tableValues', values.join(' '));
+    for (const [prefix, uniform] of [['shadow', 'selfieGradeShadows'], ['midtone', 'selfieGradeMidtones'], ['highlight', 'selfieGradeHighlights']]) {
+      uniforms[uniform].value.set(config[prefix + 'Red'], config[prefix + 'Green'], config[prefix + 'Blue']);
     }
-    visual.style.filter = config.enabled && config.intensity > 0 ? 'url(#selfie-color-grade)' : 'none';
+    uniforms.selfieGradeLevels.value.set(config.inputBlack / 32768, config.inputWhite / 32768,
+      config.outputBlack / 32768, config.outputWhite / 32768);
+    uniforms.selfieGradeGamma.value = Math.max(0.01, config.gamma);
+    const neutral = Object.keys(COLOR_GRADING_NEUTRAL).every(key =>
+      key === 'enabled' || key === 'intensity' || config[key] === COLOR_GRADING_NEUTRAL[key]);
+    uniforms.selfieGradeStrength.value = config.enabled && !neutral ? clamp(config.intensity / 100) : 0;
+    visual.style.filter = 'none';
   }
   sync();
-  return { visual, config, sync };
+  const configured = new WeakSet();
+  function bindModel(root) {
+    root.traverse(object => {
+      if (!object.isMesh) return;
+      for (const material of (Array.isArray(object.material) ? object.material : [object.material])) {
+        if (configured.has(material)) continue;
+        configured.add(material);
+        const original = material.onBeforeCompile;
+        const key = material.customProgramCacheKey();
+        material.onBeforeCompile = function(shader, renderer) {
+          original.call(this, shader, renderer);
+          Object.assign(shader.uniforms, uniforms);
+          shader.fragmentShader = gradingShader + '\n' + shader.fragmentShader.replace(
+            '#include <colorspace_fragment>',
+            '#include <colorspace_fragment>\nif (selfieGradeStrength > 0.0) gl_FragColor.rgb = selfieGrade(gl_FragColor.rgb);');
+        };
+        material.customProgramCacheKey = () => key + '|selfie-character-grade-v1';
+        material.needsUpdate = true;
+      }
+    });
+  }
+  return { visual, config, sync, bindModel, uniforms };
 }
 
 export function createColorGradingControl(parent, grading) {
@@ -62,7 +114,8 @@ export function createColorGradingControl(parent, grading) {
   control.innerHTML = `<label class="follow-toggle"><span>Enabled</span><input type="checkbox" aria-label="Enable color grading"><span class="toggle-track"><span class="toggle-thumb"></span></span></label>
     <fieldset class="squinting-group"><legend>Display-referred grade · Levels in AE 16-bit units</legend>${fields.map(([key, label, min, max, step, unit]) => `<label><span>${label}</span><input type="range" aria-label="${label}" data-grade="${key}" min="${min}" max="${max}" step="${step}"><output data-grade-value="${key}"></output><small>${unit}</small></label>`).join('')}</fieldset>
     <button type="button" data-grade-reset>Reset to Reference</button>
-    <small>Color Balance approximation; Curves neutral. UI is not graded.</small>`;
+    <button type="button" data-grade-neutral>Reset Parameter</button>
+    <small>Character only. Color Balance approximation; Curves neutral.</small>`;
   const enabled = control.querySelector('input[type="checkbox"]');
   function sync() {
     enabled.checked = grading.config.enabled;
@@ -87,5 +140,6 @@ export function createColorGradingControl(parent, grading) {
     sync();
   });
   control.querySelector('[data-grade-reset]').addEventListener('click', () => { Object.assign(grading.config, COLOR_GRADING_REFERENCE); sync(); });
+  control.querySelector('[data-grade-neutral]').addEventListener('click', () => { Object.assign(grading.config, COLOR_GRADING_NEUTRAL); sync(); });
   parent.appendChild(control); sync();
 }

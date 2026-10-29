@@ -98,6 +98,7 @@ async function initialize() {
 
   try {
     const head = await createHead(undefined, { renderer: experience.renderer });
+    experience.colorGrading.bindModel(head);
     const modelInfo = head.userData.inspection;
     const advancedSettings = createAdvancedSettings(container);
     createColorGradingControl(advancedSettings.getSection('colorGrading'), experience.colorGrading);
