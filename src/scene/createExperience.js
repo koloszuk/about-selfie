@@ -8,6 +8,7 @@ import { createCameraFraming } from './createCameraFraming.js';
 import { createVideoBackground } from './createVideoBackground.js';
 import { createBackgroundGrain } from './createBackgroundGrain.js';
 import { createBackgroundRipple } from './createBackgroundRipple.js';
+import { createColorGrading } from '../ui/createColorGrading.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
@@ -23,25 +24,28 @@ export const FILL_LIGHT_INTENSITY = 1.2;
 export const RIM_LIGHT_INTENSITY = 1.4;
 
 export function createExperience(container) {
+  const colorGrading = createColorGrading(container);
+  const visual = colorGrading.visual;
   const { width: ratioWidth, height: ratioHeight } = PRESENTATION_CONFIG.viewer;
   container.style.setProperty('--selfie-aspect-ratio', `${ratioWidth} / ${ratioHeight}`);
   container.style.setProperty('--selfie-aspect-number', ratioWidth / ratioHeight);
   const scene = new THREE.Scene();
   const backgroundColor = new THREE.Color(BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT]);
-  container.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.background.placeholderAsset)}")`;
-  container.style.backgroundSize = 'cover';
-  container.style.backgroundPosition = 'center';
-  container.style.backgroundRepeat = 'no-repeat';
-  const videoBackground = createVideoBackground(container,
+  visual.style.backgroundImage = `url("${getPublicAssetUrl(PRESENTATION_CONFIG.background.placeholderAsset)}")`;
+  visual.style.backgroundSize = 'cover';
+  visual.style.backgroundPosition = 'center';
+  visual.style.backgroundRepeat = 'no-repeat';
+  const videoBackground = createVideoBackground(visual,
     PRESENTATION_CONFIG.background.videoAsset, PRESENTATION_CONFIG.background.placeholderAsset);
-  const backgroundGrain = createBackgroundGrain(container, PRESENTATION_CONFIG.backgroundGrain);
+  visual.style.position = 'absolute';
+  const backgroundGrain = createBackgroundGrain(visual, PRESENTATION_CONFIG.backgroundGrain);
   if (IS_EMBED_MODE) {
     scene.background = null;
-    container.style.backgroundColor = 'transparent';
+    visual.style.backgroundColor = 'transparent';
     container.dataset.embedMode = 'true';
   } else {
     scene.background = backgroundColor;
-    container.style.backgroundColor = `#${backgroundColor.getHexString()}`;
+    visual.style.backgroundColor = `#${backgroundColor.getHexString()}`;
   }
   // The image is a viewer layer, independent of orbit and environment lighting.
   scene.background = null;
@@ -79,7 +83,7 @@ export function createExperience(container) {
     webgl2: isWebGL2,
     hairPipeline: 'straight alpha',
   }));
-  container.prepend(renderer.domElement);
+  visual.prepend(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -93,7 +97,7 @@ export function createExperience(container) {
   const environment = createEnvironment({ scene, controls });
   const postProcessing = createPostProcessing({ renderer, scene, camera });
   const backgroundRipple = createBackgroundRipple({
-    renderer, scene, camera, container, videoBackground, backgroundGrain,
+    renderer, scene, camera, container: visual, videoBackground, backgroundGrain,
     grainConfig: PRESENTATION_CONFIG.backgroundGrain, postProcessing,
     defaults: PRESENTATION_CONFIG.backgroundRipple,
     placeholderAsset: PRESENTATION_CONFIG.background.placeholderAsset,
@@ -151,12 +155,12 @@ export function createExperience(container) {
     const color = BACKGROUND_COLORS[mode] ?? BACKGROUND_COLORS[BACKGROUND_MODE_DEFAULT];
     backgroundColor.setHex(color);
     scene.background = null;
-    container.style.backgroundColor = `#${color.toString(16).padStart(6, '0')}`;
+    visual.style.backgroundColor = `#${color.toString(16).padStart(6, '0')}`;
   }
 
   return {
     scene, camera, renderer, controls, environment, lighting, postProcessing, backgroundRipple,
-    resize, setBackgroundMode, dispose,
+    resize, setBackgroundMode, dispose, colorGrading,
     frameModel(model) {
       framing.setModel(model);
       backgroundRipple.setModel(model);

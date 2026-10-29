@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createColorGradingControl } from './ui/createColorGrading.js';
 import './style.css';
 import './ui/compactUi.css';
 import { createBlinkController } from './animation/createBlinkController.js';
@@ -99,6 +100,7 @@ async function initialize() {
     const head = await createHead(undefined, { renderer: experience.renderer });
     const modelInfo = head.userData.inspection;
     const advancedSettings = createAdvancedSettings(container);
+    createColorGradingControl(advancedSettings.getSection('colorGrading'), experience.colorGrading);
     backgroundRippleControl = createBackgroundRippleControl(
       advancedSettings.getSection('backgroundRipple'), experience.backgroundRipple,
     );

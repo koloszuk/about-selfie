@@ -1,4 +1,5 @@
 const SECTIONS = [
+  ['colorGrading', 'Color Grading'],
   ['follow', 'Cursor Tracking'],
   ['keyboard', 'Keyboard Settings'],
   ['eyeAlign', 'Eye Align'],
