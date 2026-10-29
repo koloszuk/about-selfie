@@ -2,11 +2,11 @@ import * as THREE from 'three';
 
 export const COLOR_GRADING_REFERENCE = Object.freeze({
   enabled: true, intensity: 100,
-  shadowRed: 25, shadowGreen: 8, shadowBlue: 19,
-  midtoneRed: -10, midtoneGreen: 0, midtoneBlue: 0,
-  highlightRed: 0, highlightGreen: 1, highlightBlue: 7,
-  inputBlack: 0, inputWhite: 32768, gamma: 0.87,
-  outputBlack: 1799, outputWhite: 32768,
+  shadowRed: -10, shadowGreen: -5, shadowBlue: 4,
+  midtoneRed: 0, midtoneGreen: 0, midtoneBlue: 0,
+  highlightRed: 40, highlightGreen: 15, highlightBlue: 43,
+  inputBlack: 0, inputWhite: 32768, gamma: 1.01,
+  outputBlack: 1452, outputWhite: 32768,
 });
 export const COLOR_GRADING_NEUTRAL = Object.freeze({
   enabled: true, intensity: 100,
