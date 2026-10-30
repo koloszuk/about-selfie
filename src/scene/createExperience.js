@@ -9,6 +9,7 @@ import { createVideoBackground } from './createVideoBackground.js';
 import { createBackgroundGrain } from './createBackgroundGrain.js';
 import { createBackgroundRipple } from './createBackgroundRipple.js';
 import { createColorGrading } from '../ui/createColorGrading.js';
+import { createDepthOfField } from './createDepthOfField.js';
 
 export const BACKGROUND_COLORS = Object.freeze({
   bright: 0xe9e7e2,
@@ -96,6 +97,7 @@ export function createExperience(container) {
   const lighting = addLighting(scene);
   const environment = createEnvironment({ scene, controls });
   const postProcessing = createPostProcessing({ renderer, scene, camera });
+  const depthOfField = createDepthOfField({renderer,scene,camera,postProcessing,colorGrading});
   const backgroundRipple = createBackgroundRipple({
     renderer, scene, camera, container: visual, videoBackground, backgroundGrain,
     grainConfig: PRESENTATION_CONFIG.backgroundGrain, postProcessing,
@@ -116,6 +118,7 @@ export function createExperience(container) {
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(width, height, false);
     postProcessing.setSize(width, height, pixelRatio);
+    depthOfField.setSize(width,height,pixelRatio);
     backgroundRipple.resize(width, height);
     renderer.domElement.dataset.devicePixelRatio = String(devicePixelRatio);
     renderer.domElement.dataset.rendererPixelRatio = String(renderer.getPixelRatio());
@@ -147,6 +150,7 @@ export function createExperience(container) {
     controls.dispose();
     environment.dispose();
     postProcessing.dispose();
+    depthOfField.dispose();
     renderer.dispose();
   }
 
@@ -160,10 +164,11 @@ export function createExperience(container) {
 
   return {
     scene, camera, renderer, controls, environment, lighting, postProcessing, backgroundRipple,
-    resize, setBackgroundMode, dispose, colorGrading,
+    resize, setBackgroundMode, dispose, colorGrading, depthOfField,
     frameModel(model) {
       framing.setModel(model);
       backgroundRipple.setModel(model);
+      depthOfField.setModel(model);
       resize();
     },
   };

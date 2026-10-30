@@ -1,4 +1,5 @@
 const SECTIONS = [
+  ['depthOfField', 'Depth of Field'],
   ['colorGrading', 'Color Grading'],
   ['follow', 'Cursor Tracking'],
   ['keyboard', 'Keyboard Settings'],

@@ -17,6 +17,10 @@ export const COLOR_GRADING_NEUTRAL = Object.freeze({
   outputBlack: 0, outputWhite: 32768,
 });
 const gradingShader = `
+#ifndef TONE_MAPPING
+${THREE.ShaderChunk.tonemapping_pars_fragment}
+#endif
+uniform float selfieGradeOffscreen;
 uniform vec3 selfieGradeShadows, selfieGradeMidtones, selfieGradeHighlights;
 uniform vec4 selfieGradeLevels;
 uniform float selfieGradeGamma, selfieGradeStrength;
@@ -64,6 +68,7 @@ export function createColorGrading(parent) {
     selfieGradeHighlights: { value: new THREE.Vector3() },
     selfieGradeLevels: { value: new THREE.Vector4() },
     selfieGradeGamma: { value: 1 }, selfieGradeStrength: { value: 0 },
+    selfieGradeOffscreen: { value: 0 },
   };
   function sync() {
     for (const [prefix, uniform] of [['shadow', 'selfieGradeShadows'], ['midtone', 'selfieGradeMidtones'], ['highlight', 'selfieGradeHighlights']]) {
@@ -92,9 +97,9 @@ export function createColorGrading(parent) {
           Object.assign(shader.uniforms, uniforms);
           shader.fragmentShader = gradingShader + '\n' + shader.fragmentShader.replace(
             '#include <colorspace_fragment>',
-            '#include <colorspace_fragment>\nif (selfieGradeStrength > 0.0) gl_FragColor.rgb = selfieGrade(gl_FragColor.rgb);');
+            '#include <colorspace_fragment>\nif (selfieGradeOffscreen > 0.5) gl_FragColor.rgb = sRGBTransferOETF(vec4(ACESFilmicToneMapping(gl_FragColor.rgb),1.0)).rgb;\nif (selfieGradeStrength > 0.0) gl_FragColor.rgb = selfieGrade(gl_FragColor.rgb);');
         };
-        material.customProgramCacheKey = () => key + '|selfie-character-grade-v1';
+        material.customProgramCacheKey = () => key + '|selfie-character-grade-v2';
         material.needsUpdate = true;
       }
     });

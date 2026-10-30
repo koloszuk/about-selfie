@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createDepthOfFieldControl } from './ui/createDepthOfFieldControl.js';
 import { createColorGradingControl } from './ui/createColorGrading.js';
 import './style.css';
 import './ui/compactUi.css';
@@ -101,6 +102,7 @@ async function initialize() {
     experience.colorGrading.bindModel(head);
     const modelInfo = head.userData.inspection;
     const advancedSettings = createAdvancedSettings(container);
+    createDepthOfFieldControl(advancedSettings.getSection('depthOfField'), experience.depthOfField);
     createColorGradingControl(advancedSettings.getSection('colorGrading'), experience.colorGrading);
     backgroundRippleControl = createBackgroundRippleControl(
       advancedSettings.getSection('backgroundRipple'), experience.backgroundRipple,
@@ -357,7 +359,7 @@ function animate() {
   experience.backgroundRipple.update(delta);
   frameProfiler?.endRipple();
   backgroundRippleControl?.update(delta);
-  experience.postProcessing.render(delta);
+  experience.depthOfField.render(delta);
   if (performanceAnalytics) performanceAnalytics.recordRender(performance.now() - renderStart);
   performanceAnalytics?.endFrame(delta);
   frameProfiler?.endFrame();
